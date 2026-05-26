@@ -19,6 +19,12 @@ Production-ready World Cup 2026 trading platform. Users trade match outcomes, fa
 | Indexer | The Graph (subgraph) |
 | Infra | Vercel (frontend), AWS EC2 (oracle), Railway/Supabase (DB), Upstash (Redis) |
 
+## Git Discipline
+- **Commit after every meaningful change.** No long gaps without commits.
+- Write clear, descriptive commit messages (what + why, not just what).
+- Stage only relevant files — never commit secrets, `.env`, or `node_modules`.
+- Before committing, run `git status` + `git diff` to verify intent.
+
 ## Coding Conventions
 - **Solidity**: NatSpec on all public functions. Use OpenZeppelin `ReentrancyGuard`, `SafeERC20`.
 - **TypeScript/TSX**: Strict types. No `any`. Use `wagmi` + `viem` for all chain interactions.

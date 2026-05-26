@@ -14,5 +14,6 @@ You are building **GoalSwap Arena** — a real-data World Cup trading platform o
 3. **Implementation order matters.** Phase 1 → Phase 5 per `about.md:1037`.
 4. **Next.js 16 has breaking changes.** Read `node_modules/next/dist/docs/` before writing any code.
 5. **Tailwind v4** — use `@tailwindcss/postcss` (already installed), different from v3 config.
-6. **Keep it concise.** No explanatory comments in code unless absolutely necessary.
+6. **Keep it concise.** No explanatory comments in code unless absolutely unnecessary.
 7. **Verify with `npm run build` / `npm run lint`** after each major change.
+8. **Commit after every change.** Stage only relevant files, write a clear commit message, and push. No long gaps without commits.
