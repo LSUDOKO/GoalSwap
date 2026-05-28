@@ -46,4 +46,4 @@ export const useWalletStore = create<WalletState>((set) => ({
   setCorrectChain: (correct) => set({ isCorrectChain: correct }),
 }));
 
-export const CORRECT_CHAIN_ID = 196; // X Layer Mainnet
+export const CORRECT_CHAIN_ID = 1952; // X Layer Testnet

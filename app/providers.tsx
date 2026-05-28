@@ -10,7 +10,7 @@ import {
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { mainnet } from "wagmi/chains";
 import { http } from "wagmi";
-import { xLayer } from "@/lib/contracts";
+import { xLayerTestnet, defaultChain } from "@/lib/contracts";
 
 // ── RainbowKit + Wagmi Config ──
 const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ?? "";
@@ -18,9 +18,9 @@ const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ?? "";
 const config = getDefaultConfig({
   appName: "GoalSwap Arena",
   projectId,
-  chains: [xLayer, mainnet],
+  chains: [xLayerTestnet, mainnet],
   transports: {
-    [xLayer.id]: http(),
+    [xLayerTestnet.id]: http(),
     [mainnet.id]: http(),
   },
   ssr: true,

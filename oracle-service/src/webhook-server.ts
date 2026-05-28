@@ -27,16 +27,17 @@ import {
 import {
   StateValidator,
 } from "./StateValidator.js";
+import axios from "axios";
 import { MultiSportFetcher } from "./MultiSportFetcher.js";
 import { getFeeTier, getFeeReason } from "./fees.js";
 import {
   SPORT_INFO,
   ALL_SPORTS,
+} from "./types.js";
+import type {
   FanTokenInfo,
   FanTokenTradeRequest,
   FanTokenTradeResult,
-} from "./types.js";
-import type {
   WebhookGoalPayload,
   WebhookSettledPayload,
   MatchState,
@@ -528,6 +529,142 @@ export class WebhookServer {
     });
 
     // ═══════════════════════════════════════════════════════════════
+    //  Sportmonks Data Endpoints
+    // ═══════════════════════════════════════════════════════════════
+
+    // GET /api/sportmonks/team/:teamId — Team details with upcoming fixtures
+    this.app.get("/api/sportmonks/team/:teamId", async (req: Request, res: Response) => {
+      const teamId = parseInt(req.params.teamId, 10);
+      if (isNaN(teamId)) {
+        res.status(400).json({ error: "Invalid team ID" });
+        return;
+      }
+
+      const team = await this.multiSportFetcher?.fetchSportmonksTeam(teamId);
+      if (!team) {
+        res.status(404).json({ error: "Team not found or API unavailable" });
+        return;
+      }
+
+      res.json({ team });
+    });
+
+    // GET /api/sportmonks/squad/:teamId — Squad data with player stats
+    this.app.get("/api/sportmonks/squad/:teamId", async (req: Request, res: Response) => {
+      const teamId = parseInt(req.params.teamId, 10);
+      if (isNaN(teamId)) {
+        res.status(400).json({ error: "Invalid team ID" });
+        return;
+      }
+
+      const squad = await this.multiSportFetcher?.fetchSportmonksSquad(teamId);
+      if (!squad || squad.length === 0) {
+        res.status(404).json({ error: "Squad not found or API unavailable" });
+        return;
+      }
+
+      res.json({
+        teamId,
+        squad,
+        count: squad.length,
+      });
+    });
+
+    // GET /api/sportmonks/odds/:leagueId — Odds data for a specific league
+    this.app.get("/api/sportmonks/odds/:leagueId", async (req: Request, res: Response) => {
+      const leagueId = parseInt(req.params.leagueId, 10);
+      if (isNaN(leagueId)) {
+        res.status(400).json({ error: "Invalid league ID" });
+        return;
+      }
+
+      try {
+        const token = process.env.SPORTMONKS_TOKEN ?? "";
+        if (!token) {
+          res.status(503).json({ error: "Sportmonks token not configured" });
+          return;
+        }
+
+        // Fetch current round for the given league, with odds included
+        const { data } = await axios.get(
+          `https://api.sportmonks.com/v3/football/rounds`,
+          {
+            params: {
+              api_token: token,
+              "filter[league_id]": leagueId,
+              "filter[current]": 1,
+              per_page: 1,
+              include: "fixtures.odds.market;fixtures.odds.bookmaker;fixtures.participants;league.country",
+            },
+            timeout: 15_000,
+          }
+        );
+
+        const rounds = data?.data ?? [];
+        const fixtures = rounds.flatMap((r: any) => r.fixtures ?? []);
+        const fixturesWithOdds = fixtures.filter((f: any) => f.odds?.length > 0);
+
+        res.json({
+          leagueId,
+          round: rounds[0]?.name ?? null,
+          fixtures: fixturesWithOdds,
+          totalFixtures: fixtures.length,
+          fixturesWithOdds: fixturesWithOdds.length,
+        });
+      } catch (err) {
+        res.status(500).json({ error: "Failed to fetch odds", details: (err as Error).message });
+      }
+    });
+
+    // GET /api/sportmonks/search/teams/:query — Search teams by name
+    this.app.get("/api/sportmonks/search/teams/:query", async (req: Request, res: Response) => {
+      const query = req.params.query;
+      if (!query || query.length < 2) {
+        res.status(400).json({ error: "Query must be at least 2 characters" });
+        return;
+      }
+
+      try {
+        const token = process.env.SPORTMONKS_TOKEN ?? "";
+        if (!token) {
+          res.status(503).json({ error: "Sportmonks token not configured" });
+          return;
+        }
+
+        const url = `https://api.sportmonks.com/v3/football/teams/search/${encodeURIComponent(query)}?api_token=${token}&include=country`;
+        const response = await fetch(url);
+        const data = await response.json();
+        res.json({ results: data?.data ?? [], count: data?.data?.length ?? 0 });
+      } catch (err) {
+        res.status(500).json({ error: "Search failed", details: (err as Error).message });
+      }
+    });
+
+    // GET /api/sportmonks/search/players/:query — Search players by name
+    this.app.get("/api/sportmonks/search/players/:query", async (req: Request, res: Response) => {
+      const query = req.params.query;
+      if (!query || query.length < 2) {
+        res.status(400).json({ error: "Query must be at least 2 characters" });
+        return;
+      }
+
+      try {
+        const token = process.env.SPORTMONKS_TOKEN ?? "";
+        if (!token) {
+          res.status(503).json({ error: "Sportmonks token not configured" });
+          return;
+        }
+
+        const url = `https://api.sportmonks.com/v3/football/players/search/${encodeURIComponent(query)}?api_token=${token}&include=position;nationality`;
+        const response = await fetch(url);
+        const data = await response.json();
+        res.json({ results: data?.data ?? [], count: data?.data?.length ?? 0 });
+      } catch (err) {
+        res.status(500).json({ error: "Search failed", details: (err as Error).message });
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════════════
     //  Fan Token API Endpoints
     // ═══════════════════════════════════════════════════════════════
 
@@ -546,8 +683,16 @@ export class WebhookServer {
         const meta = metadata.find((m) => m.matchId === matchId);
         if (!meta) continue;
 
-        for (const team of [meta.homeTeam, meta.awayTeam]) {
-          const symbol = team.replace(/\s/g, "").slice(0, 4).toUpperCase();
+      for (const team of [meta.homeTeam, meta.awayTeam]) {
+          // Sport abbreviation to make symbols unique across leagues
+          const SPORT_ABBR: Record<string, string> = {
+            football: "WC", basketball: "EUR", nba: "NBA", afl: "AFL",
+            baseball: "MLB", formula1: "F1", handball: "HAN", hockey: "NHL",
+            mma: "MMA", "american-football": "NFL", rugby: "RUG", volleyball: "VOL", golf: "GLF",
+          };
+          const sportAbbr = SPORT_ABBR[meta.sport] ?? meta.sport.slice(0, 3).toUpperCase();
+          const baseSymbol = team.replace(/\s/g, "").slice(0, 4).toUpperCase();
+          const symbol = `${baseSymbol}-${sportAbbr}`;
           const prev = existingMap.get(symbol);
 
           // Bonding curve: simulate organic trading based on match activity

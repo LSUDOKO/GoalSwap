@@ -8,7 +8,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { socketManager, type WsMatchUpdate, type WsGoalScored, type WsFeeChanged, type WsMatchSettled } from "@/lib/socket";
+import { useShallow } from "zustand/react/shallow";
+import { socketManager, type WsMatchUpdate, type WsGoalScored, type WsFeeChanged } from "@/lib/socket";
 import { oracleApi, type MatchDetail } from "@/lib/oracle";
 import { useMatchStore } from "@/stores/matchStore";
 
@@ -34,8 +35,12 @@ export function useMatchState(matchId: string): UseMatchStateReturn {
   const [error, setError] = useState<string | null>(null);
 
   const liveState = useMatchStore((s) => s.liveState[matchId] ?? null);
-  const recentGoals = useMatchStore((s) => s.recentGoals.filter((g) => g.matchId === matchId));
-  const recentFeeChanges = useMatchStore((s) => s.recentFeeChanges.filter((f) => f.matchId === matchId));
+  const recentGoals = useMatchStore(
+    useShallow((s) => s.recentGoals.filter((g) => g.matchId === matchId)),
+  );
+  const recentFeeChanges = useMatchStore(
+    useShallow((s) => s.recentFeeChanges.filter((f) => f.matchId === matchId)),
+  );
   const updateMatchState = useMatchStore((s) => s.updateMatchState);
   const addGoal = useMatchStore((s) => s.addGoal);
   const updateFee = useMatchStore((s) => s.updateFee);

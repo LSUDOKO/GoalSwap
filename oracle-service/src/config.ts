@@ -111,7 +111,14 @@ export const config = {
     },
     sportmonks: {
       key: process.env.SPORTMONKS_KEY ?? "",
-      baseUrl: "https://soccer.sportmonks.com/api/v3",
+      token: process.env.SPORTMONKS_TOKEN ?? "",
+      baseUrl: "https://api.sportmonks.com/v3",
+      livescoresUrl: "/football/livescores/inplay",
+      roundsUrl: "/football/rounds",
+      teamsUrl: "/football/teams",
+      squadsUrl: "/football/squads/teams",
+      pollingIntervalMs: 20_000,
+      rateLimitPerDay: 10000,
     },
     golf: {
       key: process.env.RAPIDAPI_KEY ?? "",

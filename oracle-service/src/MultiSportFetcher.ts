@@ -11,6 +11,10 @@
  *  - SportAPI7 (RapidAPI) — granular sport data
  *  - Live Golf Data (RapidAPI) — golf tournaments
  *  - Twitter241 (RapidAPI) — X/Twitter social integration
+ *
+ * PRIMARY FOOTBALL SOURCE:
+ *  - Sportmonks (v3) — livescores, odds, teams, squads
+ *  - api-sports.io football is used as fallback
  */
 
 import axios, { type AxiosInstance } from "axios";
@@ -129,6 +133,134 @@ interface SportApi7Event {
   startDate: string;
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  Sportmonks API Types
+// ═══════════════════════════════════════════════════════════════
+
+/** Sportmonks response wrapper */
+interface SportmonksResponse<T> {
+  data: T[];
+  meta?: {
+    pagination?: {
+      total: number;
+      count: number;
+      per_page: number;
+      current_page: number;
+      total_pages: number;
+    };
+    subscription?: Array<{
+      meta: Array<{ ends_at?: string }>;
+      plans: Array<{ name: string }>;
+    }>;
+  };
+  message?: string;
+}
+
+/** Sportmonks fixture shape */
+interface SportmonksFixture {
+  id: number;
+  name?: string;
+  status?: string;
+  starting_at?: string;
+  minute?: number;
+  league_id?: number;
+  scores?: Array<{
+    team_id: number;
+    type_id: number;
+    score: {
+      current?: string | number;
+      halftime?: string | number;
+      fulltime?: string | number;
+    };
+    description: string;
+  }>;
+  participants?: Array<{
+    id: number;
+    name?: string;
+    image_path?: string;
+    meta?: {
+      location: "home" | "away";
+    };
+  }>;
+  league?: {
+    id: number;
+    name: string;
+    image_path?: string;
+    country?: {
+      id: number;
+      name: string;
+      image_path?: string;
+    };
+  };
+  odds?: Array<{
+    id: number;
+    name?: string;
+    probability?: string;
+    odds?: Array<{
+      id: number;
+      name: string;
+      value: string;
+      probability?: string;
+      bookmaker?: {
+        id: number;
+        name: string;
+      };
+    }>;
+  }>;
+}
+
+/** Sportmonks round shape (for odds) */
+interface SportmonksRound {
+  id: number;
+  name: string;
+  start?: string;
+  end?: string;
+  fixtures?: SportmonksFixture[];
+}
+
+/** Sportmonks team shape */
+interface SportmonksTeam {
+  id: number;
+  name: string;
+  image_path?: string;
+  short_code?: string;
+  upcoming?: SportmonksFixture[];
+  squad?: SportmonksSquadMember[];
+}
+
+/** Sportmonks player shape */
+interface SportmonksPlayer {
+  id: number;
+  name: string;
+  image_path?: string;
+  nationality?: {
+    id: number;
+    name: string;
+    image_path?: string;
+  };
+  position?: {
+    id: number;
+    name: string;
+  };
+  statistics?: Array<{
+    details?: Array<{
+      id: number;
+      type?: {
+        id: number;
+        name: string;
+      };
+      value?: string | number;
+    }>;
+  }>;
+}
+
+/** Sportmonks squad member */
+interface SportmonksSquadMember {
+  id: number;
+  player?: SportmonksPlayer;
+  team?: SportmonksTeam;
+}
+
 /** Golf tournament shape */
 interface GolfEvent {
   id: number;
@@ -145,6 +277,41 @@ interface GolfEvent {
     thru: number;
   };
 }
+
+/** Sportmonks fixture status mapping */
+const SPORTMONKS_STATUS_MAP: Record<string, MatchStatus> = {
+  "live": "LIV",
+  "inprogress": "LIV",
+  "in_progress": "LIV",
+  "1st_half": "LIV",
+  "2nd_half": "LIV",
+  "halftime": "LIV",
+  "extra_time": "LIV",
+  "extra": "LIV",
+  "penalties": "LIV",
+  "finished": "FT",
+  "ended": "FT",
+  "full_time": "FT",
+  "awarded": "FT",
+  "walkover": "FT",
+  "not_started": "NS",
+  "postponed": "PST",
+  "cancelled": "CANC",
+  "interrupted": "INT",
+  "suspended": "SUSP",
+  "abandoned": "CANC",
+};
+
+/** Sportmonks status → live check */
+const SPORTMONKS_LIVE_STATUSES = new Set([
+  "live", "inprogress", "in_progress", "1st_half", "2nd_half",
+  "halftime", "extra_time", "extra", "penalties",
+]);
+
+/** Sportmonks status → finished check */
+const SPORTMONKS_FINISHED_STATUSES = new Set([
+  "finished", "ended", "full_time", "awarded", "walkover",
+]);
 
 export class MultiSportFetcher {
   /** Axios clients keyed by sport ID */
@@ -175,6 +342,12 @@ export class MultiSportFetcher {
 
   /** Golf client */
   private golfClient: AxiosInstance;
+
+  /** Sportmonks client (primary football source) */
+  private sportmonksClient: AxiosInstance;
+
+  /** Sportmonks token */
+  private sportmonksToken: string;
 
   constructor() {
     this.apiSportsKey = process.env.API_SPORTS_KEY ?? "";
@@ -233,6 +406,16 @@ export class MultiSportFetcher {
       },
       timeout: 10_000,
     });
+
+    // Initialize Sportmonks client (primary football data source)
+    this.sportmonksToken = process.env.SPORTMONKS_TOKEN ?? "";
+    this.sportmonksClient = axios.create({
+      baseURL: config.sportsApi.sportmonks.baseUrl,
+      timeout: 15_000,
+      params: {
+        api_token: this.sportmonksToken,
+      },
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -241,7 +424,7 @@ export class MultiSportFetcher {
 
   /**
    * Fetch live matches from ALL sports in parallel.
-   * Uses api-sports.io primary, falls back to Odds API / football-data.org.
+   * Football uses Sportmonks as PRIMARY source, with api-sports.io as fallback.
    */
   async fetchAllSports(): Promise<{ matches: MatchUpdate[]; metadata: Map<string, MatchMetadata> }> {
     const allMatches: MatchUpdate[] = [];
@@ -249,14 +432,26 @@ export class MultiSportFetcher {
 
     const sports = Object.keys(SPORT_INFO) as Sport[];
 
-    // Fetch all sports in parallel
+    // Fetch all sports in parallel — football uses Sportmonks first
     const results = await Promise.allSettled(
-      sports.map((sport) =>
-        this._fetchSport(sport).catch((err) => {
+      sports.map((sport) => {
+        // Football: use Sportmonks as primary, api-sports.io as fallback
+        if (sport === "football") {
+          return this._fetchSportmonksFootball().catch((err) => {
+            console.warn(`[MultiSportFetcher][Sportmonks] Failed:`, err.message);
+            console.warn(`[MultiSportFetcher][Football] Falling back to api-sports.io...`);
+            return this._fetchSport(sport).catch((err2) => {
+              console.warn(`[MultiSportFetcher][Football] api-sports.io also failed:`, err2.message);
+              return { matches: [], metadata: new Map() };
+            });
+          });
+        }
+        // All other sports use generic api-sports.io
+        return this._fetchSport(sport).catch((err) => {
           console.warn(`[MultiSportFetcher][${sport}] Failed:`, err.message);
           return { matches: [], metadata: new Map() };
-        })
-      )
+        });
+      })
     );
 
     for (const result of results) {
@@ -272,6 +467,13 @@ export class MultiSportFetcher {
     const oddsResult = await this._fetchFromOddsApi().catch(() => ({ matches: [], metadata: new Map() }));
     allMatches.push(...oddsResult.matches);
     for (const [key, meta] of oddsResult.metadata) {
+      allMetadata.set(key, meta);
+    }
+
+    // Fetch from Sportmonks odds/rounds as supplementary
+    const smOddsResult = await this._fetchSportmonksOdds().catch(() => ({ matches: [], metadata: new Map() }));
+    allMatches.push(...smOddsResult.matches);
+    for (const [key, meta] of smOddsResult.metadata) {
       allMetadata.set(key, meta);
     }
 
@@ -303,6 +505,7 @@ export class MultiSportFetcher {
       limits[sport] = 100;
       rateLimited[sport] = this.isRateLimited(sport);
     }
+    limits["sportmonks"] = config.sportsApi.sportmonks.rateLimitPerDay;
     limits["oddsApi"] = 1000;
     limits["footballData"] = 100;
     limits["sportapi7"] = 500;
@@ -329,6 +532,329 @@ export class MultiSportFetcher {
   getAllMetadata(sport?: string): MatchMetadata[] {
     const all = Array.from(this.metadataCache.values());
     return sport ? all.filter((m) => m.sport === sport) : all;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Sportmonks — Primary Football Data Source
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Fetch football data from Sportmonks (primary).
+   * Uses livescores/inplay + scheduled fixtures.
+   */
+  async _fetchSportmonksFootball(): Promise<{
+    matches: MatchUpdate[];
+    metadata: Map<string, MatchMetadata>;
+  }> {
+    const metadata = new Map<string, MatchMetadata>();
+    const matches: MatchUpdate[] = [];
+    if (!this.sportmonksToken) return { matches, metadata };
+
+    try {
+      // Step 1: Fetch inplay livescores with participants, scores, state, and periods
+      const { data: livescores } = await this.sportmonksClient.get<
+        SportmonksResponse<SportmonksFixture>
+      >(config.sportsApi.sportmonks.livescoresUrl, {
+        params: {
+          include: "participants;scores;state;periods",
+        },
+      });
+      this._trackApiCall("sportmonks");
+
+      const inplayFixtures = livescores?.data ?? [];
+      console.log(`[MultiSportFetcher][Sportmonks] Found ${inplayFixtures.length} in-play fixtures`);
+
+      for (const fixture of inplayFixtures) {
+        const matchUpdate = this._sportmonksFixtureToMatchUpdate(fixture, false);
+        if (matchUpdate) {
+          matches.push(matchUpdate.update);
+          const meta = matchUpdate.meta;
+          const metaKey = `football:sm-${fixture.id}`;
+          this.metadataCache.set(metaKey, meta);
+          metadata.set(metaKey, meta);
+        }
+      }
+
+      // Step 2: Fetch scheduled/live fixtures across the next 7 days
+      // Broader date range catches friendlies, pre-season, and off-season matches
+      const todayStr = config.date.today;
+      const dates: string[] = [todayStr];
+      for (let i = 1; i <= 6; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() + i);
+        dates.push(d.toISOString().split("T")[0]);
+      }
+      const scheduledFixtures: SportmonksFixture[] = [];
+      for (const date of dates) {
+        try {
+          const { data: dayFixtures } = await this.sportmonksClient.get<
+            SportmonksResponse<SportmonksFixture>
+          >("/football/fixtures/date/" + date, {
+            params: {
+              include: "participants;scores;state",
+              per_page: 50,
+            },
+          });
+          this._trackApiCall("sportmonks");
+          scheduledFixtures.push(...(dayFixtures?.data ?? []));
+        } catch {
+          // Skip failed date — continue to the next
+        }
+      }
+
+      const scheduledFixtures = todayFixtures?.data ?? [];
+      const existingIds = new Set(matches.map((m) => m.matchId));
+
+      for (const fixture of scheduledFixtures) {
+        // Skip if already added from livescores
+        // allowNotStarted=true to include upcoming/NS matches in the feed
+        const tempUpdate = this._sportmonksFixtureToMatchUpdate(fixture, true);
+        if (!tempUpdate) continue;
+        if (existingIds.has(tempUpdate.update.matchId)) continue;
+
+        matches.push(tempUpdate.update);
+        const metaKey = `football:sm-${fixture.id}`;
+        this.metadataCache.set(metaKey, tempUpdate.meta);
+        metadata.set(metaKey, tempUpdate.meta);
+      }
+
+      console.log(`[MultiSportFetcher][Sportmonks] Total: ${matches.length} fixtures (${inplayFixtures.length} live + ${scheduledFixtures.length} scheduled)`);
+    } catch (err) {
+      this._recordFailure("sportmonks");
+      throw err;
+    }
+
+    return { matches, metadata };
+  }
+
+  /**
+   * Convert Sportmonks fixture to our MatchUpdate + Metadata.
+   */
+  private _sportmonksFixtureToMatchUpdate(
+    fixture: SportmonksFixture,
+    allowNotStarted: boolean,
+  ): { update: MatchUpdate; meta: MatchMetadata } | null {
+    const rawStatus = (fixture.status ?? "not_started").toLowerCase().replace(/\s+/g, "_");
+    const mappedStatus = SPORTMONKS_STATUS_MAP[rawStatus] ?? "NS";
+    const isLive = SPORTMONKS_LIVE_STATUSES.has(rawStatus);
+    const isFinished = SPORTMONKS_FINISHED_STATUSES.has(rawStatus);
+
+    // Only skip non-live/non-finished when allowNotStarted is false (inplay call)
+    if (!isLive && !isFinished) {
+      if (!allowNotStarted) return null;
+      // allowNotStarted=true (scheduled call): allow NS through so upcoming matches appear
+    }
+
+    // Extract home/away participants
+    const homeParticipant = fixture.participants?.find((p) => p.meta?.location === "home");
+    const awayParticipant = fixture.participants?.find((p) => p.meta?.location === "away");
+    const homeName = homeParticipant?.name ?? "Home";
+    const awayName = awayParticipant?.name ?? "Away";
+    const homeLogo = homeParticipant?.image_path ?? "";
+    const awayLogo = awayParticipant?.image_path ?? "";
+
+    // If participants are missing, extract team IDs from scores array
+    const teamIds = fixture.scores?.map(s => s.team_id) ?? [];
+    const resolvedHomeId = homeParticipant?.id ?? teamIds[0] ?? fixture.id;
+    const resolvedAwayId = awayParticipant?.id ?? teamIds[1] ?? fixture.id;
+
+    // Extract scores — Sportmonks scores array:
+    //   type_id: 1 = current score (live), 3 = fulltime (finished)
+    // Use type 1 for live matches, fall back to type 3 for finished
+    const scoreTypeId = isFinished ? 3 : 1;
+    const homeScoreEntry = fixture.scores?.find(
+      (s) => s.team_id === resolvedHomeId && s.type_id === scoreTypeId
+    );
+    // Fallback: if the preferred type_id isn't found, try the other one
+    const homeScoreFallback = !homeScoreEntry ? fixture.scores?.find(
+      (s) => s.team_id === resolvedHomeId && s.type_id === (isFinished ? 1 : 3)
+    ) : undefined;
+    const awayScoreEntry = fixture.scores?.find(
+      (s) => s.team_id === resolvedAwayId && s.type_id === scoreTypeId
+    );
+    const awayScoreFallback = !awayScoreEntry ? fixture.scores?.find(
+      (s) => s.team_id === resolvedAwayId && s.type_id === (isFinished ? 1 : 3)
+    ) : undefined;
+    const bestHome = homeScoreEntry ?? homeScoreFallback;
+    const bestAway = awayScoreEntry ?? awayScoreFallback;
+    const homeScore =
+      bestHome?.score?.current != null
+        ? Number(bestHome.score.current) || 0
+        : 0;
+    const awayScore =
+      bestAway?.score?.current != null
+        ? Number(bestAway.score.current) || 0
+        : 0;
+
+    const minute = fixture.minute ?? (isFinished ? 90 : 0);
+    const startTime = fixture.starting_at ?? config.date.today;
+    const matchId = this._generateMatchId("football", fixture.id, resolvedHomeId, resolvedAwayId);
+    const matchKey = `${homeName.slice(0, 3).toLowerCase()}-${awayName.slice(0, 3).toLowerCase()}`;
+    const leagueId = fixture.league?.id ?? 0;
+    const leagueName = fixture.league?.name ?? "";
+
+    const update: MatchUpdate = {
+      matchId,
+      sport: "football",
+      homeScore: Math.min(homeScore, 255),
+      awayScore: Math.min(awayScore, 255),
+      minute: Math.min(minute, 999),
+      redCards: 0,
+      penaltyShootout: false,
+      isFinished,
+      timestamp: Math.floor(Date.now() / 1000),
+      status: mappedStatus,
+    };
+
+    const meta: MatchMetadata = {
+      matchId,
+      sport: "football",
+      matchKey,
+      homeTeam: homeName,
+      awayTeam: awayName,
+      homeLogo,
+      awayLogo,
+      leagueId,
+      fixtureId: fixture.id,
+      startTime,
+    };
+
+    return { update, meta };
+  }
+
+  /**
+   * Fetch odds data from Sportmonks rounds endpoint.
+   * GET /football/rounds/{roundId}?include=fixtures.odds.market;fixtures.odds.bookmaker;fixtures.participants;league.country
+   */
+  async _fetchSportmonksOdds(): Promise<{
+    matches: MatchUpdate[];
+    metadata: Map<string, MatchMetadata>;
+  }> {
+    const metadata = new Map<string, MatchMetadata>();
+    const matches: MatchUpdate[] = [];
+    if (!this.sportmonksToken) return { matches, metadata };
+
+    try {
+      // First, get active leagues to find current rounds
+      // Use a few known active leagues: World Cup (1), Premier League (8), La Liga (12), etc.
+      const leagueIds = [1, 8, 12, 41, 94, 144];
+      const roundResults = await Promise.allSettled(
+        leagueIds.map((leagueId) =>
+          this.sportmonksClient.get<SportmonksResponse<SportmonksRound>>(
+            `/football/rounds`,
+            {
+              params: {
+                "filter[league_id]": leagueId,
+                "filter[current]": 1,
+                per_page: 3,
+                include: "fixtures.odds.market;fixtures.odds.bookmaker;fixtures.participants;league.country",
+              },
+            }
+          )
+        )
+      );
+
+      let oddsCount = 0;
+      for (const result of roundResults) {
+        if (result.status !== "fulfilled") continue;
+        this._trackApiCall("sportmonks");
+
+        const rounds = result.value.data?.data ?? [];
+        for (const round of rounds) {
+          for (const fixture of round.fixtures ?? []) {
+            if (!fixture.odds || fixture.odds.length === 0) continue;
+            oddsCount++;
+
+            // Store odds info in metadata or log them
+            const homeParticipant = fixture.participants?.find(
+              (p) => p.meta?.location === "home"
+            );
+            const awayParticipant = fixture.participants?.find(
+              (p) => p.meta?.location === "away"
+            );
+            const homeName = homeParticipant?.name ?? "Home";
+            const awayName = awayParticipant?.name ?? "Away";
+            const homeId = homeParticipant?.id ?? fixture.id;
+            const awayId = awayParticipant?.id ?? fixture.id;
+            const matchId = this._generateMatchId("football", fixture.id, homeId, awayId);
+
+            // Find 1X2 market odds
+            const matchResult = fixture.odds.find(
+              (o) => o.name?.toLowerCase().includes("match result") || o.name?.toLowerCase().includes("1x2")
+            );
+            if (matchResult?.odds) {
+              const homeOdds = matchResult.odds.find((o) => o.name === "1");
+              const drawOdds = matchResult.odds.find((o) => o.name === "X");
+              const awayOdds = matchResult.odds.find((o) => o.name === "2");
+              if (homeOdds && drawOdds && awayOdds) {
+                // Log odds — frontend can use these via the API
+                console.log(
+                  `[MultiSportFetcher][Sportmonks] Odds: ${homeName} vs ${awayName} → ` +
+                  `${homeOdds.value} / ${drawOdds.value} / ${awayOdds.value}`
+                );
+              }
+            }
+          }
+        }
+      }
+
+      if (oddsCount > 0) {
+        console.log(`[MultiSportFetcher][Sportmonks] Found odds for ${oddsCount} fixtures`);
+      }
+    } catch (err) {
+      console.warn("[MultiSportFetcher][Sportmonks] Odds fetch failed:", (err as Error).message);
+    }
+
+    return { matches, metadata };
+  }
+
+  /**
+   * Fetch team details from Sportmonks.
+   * GET /football/teams/{teamId}?include=upcoming.participants;upcoming.league
+   */
+  async fetchSportmonksTeam(teamId: number): Promise<SportmonksTeam | null> {
+    if (!this.sportmonksToken) return null;
+
+    try {
+      const { data } = await this.sportmonksClient.get<{ data: SportmonksTeam }>(
+        `/football/teams/${teamId}`,
+        {
+          params: {
+            include: "upcoming.participants;upcoming.league",
+          },
+        }
+      );
+      this._trackApiCall("sportmonks");
+      return data?.data ?? null;
+    } catch (err) {
+      console.warn(`[MultiSportFetcher][Sportmonks] Team ${teamId} fetch failed:`, (err as Error).message);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch squad details from Sportmonks.
+   * GET /football/squads/teams/{teamId}?include=team;player.nationality;player.statistics.details.type;player.position&filters[playerstatisticSeasons]=25583
+   */
+  async fetchSportmonksSquad(teamId: number): Promise<SportmonksSquadMember[]> {
+    if (!this.sportmonksToken) return [];
+
+    try {
+      const { data } = await this.sportmonksClient.get<{ data: SportmonksSquadMember[] }>(
+        `/football/squads/teams/${teamId}`,
+        {
+          params: {
+            include: "team;player.nationality;player.statistics.details.type;player.position",
+            "filters[playerstatisticSeasons]": 25583,
+          },
+        }
+      );
+      this._trackApiCall("sportmonks");
+      return data?.data ?? [];
+    } catch (err) {
+      console.warn(`[MultiSportFetcher][Sportmonks] Squad ${teamId} fetch failed:`, (err as Error).message);
+      return [];
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -383,7 +909,7 @@ export class MultiSportFetcher {
         const homeScore = this._extractScore(game.scores?.home, sport);
         const awayScore = this._extractScore(game.scores?.away, sport);
 
-        // Extract minute/duration — different sports use different units
+        // Extract minute/duration
         const minute = this._extractMinute(game, sport, isFinished);
 
         // Only include live or finished matches
@@ -427,35 +953,6 @@ export class MultiSportFetcher {
 
       if (matches.length > 0) {
         console.log(`[MultiSportFetcher][${info.label}] Found ${matches.length} games`);
-      }
-
-      // Try fallback query: /games with league parameter if no results
-      if (games.length === 0 && sport === "football") {
-        try {
-          const { data: leagueData } = await client.get<ApiSportsResponse<ApiSportsGame>>("/games", {
-            params: { league: 1, season: "2026", live: "all" },
-          });
-          this._trackApiCall(sport);
-
-          for (const game of leagueData?.response ?? []) {
-            // ... same processing as above (would be extracted to a helper in production)
-            const fixtureId = game.id;
-            const metaKey = `${sport}:${fixtureId}`;
-            const matchId = this._generateMatchId(sport, fixtureId, game.teams?.home?.id ?? fixtureId, game.teams?.away?.id ?? fixtureId);
-            matches.push({
-              matchId,
-              sport,
-              homeScore: this._extractScore(game.scores?.home, sport),
-              awayScore: this._extractScore(game.scores?.away, sport),
-              minute: this._extractMinute(game, sport, false),
-              redCards: 0,
-              penaltyShootout: false,
-              isFinished: false,
-              timestamp: Math.floor(Date.now() / 1000),
-              status: "LIV",
-            });
-          }
-        } catch { /* ignore */ }
       }
     } catch (err) {
       this._recordFailure(sport);
@@ -621,7 +1118,7 @@ export class MultiSportFetcher {
       });
 
       // Score endpoints for each active sport
-      const activeSports = (sports ?? []).filter((s) => s.active).slice(0, 5); // limit to avoid OOM
+      const activeSports = (sports ?? []).filter((s) => s.active).slice(0, 5);
 
       const scoreResults = await Promise.allSettled(
         activeSports.map((s) =>
@@ -640,7 +1137,6 @@ export class MultiSportFetcher {
         const { sportKey, sportTitle, data: events } = result.value;
         this._trackApiCall("oddsApi");
 
-        // Map Odds API sport keys to our Sport type
         const mappedSport = this._mapOddsSport(sportKey);
         if (!mappedSport) continue;
 
@@ -706,18 +1202,18 @@ export class MultiSportFetcher {
     if (oddsKey.includes("volleyball")) return "volleyball";
     if (oddsKey.includes("handball")) return "handball";
     if (oddsKey.includes("golf")) return "golf";
-    if (oddsKey.includes("tennis")) return "football"; // tennis not in our Sport type, map to generic
+    if (oddsKey.includes("tennis")) return "football";
     if (oddsKey.includes("formula") || oddsKey.includes("racing")) return "formula1";
     return null;
   }
 
-  /** Simple string → number hash for Odds API event IDs (which are hex strings) */
+  /** Simple string → number hash for Odds API event IDs */
   private _hashId(str: string): number {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
-      hash |= 0; // Convert to 32bit integer
+      hash |= 0;
     }
     return Math.abs(hash);
   }
@@ -806,7 +1302,6 @@ export class MultiSportFetcher {
     if (this.isRateLimited("sportapi7")) return { matches, metadata };
 
     try {
-      // Get today's events across sports
       const { data } = await this.sportapi7Client.get<{ events: SportApi7Event[] }>("/event/live", {
         params: { sportId: 1, date: config.date.today },
       });
@@ -843,7 +1338,6 @@ export class MultiSportFetcher {
 
   /**
    * Fetch user data from X/Twitter via RapidAPI.
-   * Used by the X Bot for @mentions and user lookups.
    */
   async fetchTwitterUsers(userIds: string[]): Promise<any[]> {
     try {
@@ -905,14 +1399,11 @@ export class MultiSportFetcher {
 
     const obj = score as Record<string, unknown>;
 
-    // Different sports use different score fields
     if (sport === "baseball") {
-      // Baseball: scores.home.runs or scores.home.total
       return typeof obj.runs === "number" ? obj.runs :
              typeof obj.total === "number" ? obj.total : 0;
     }
 
-    // Standard: total, points
     const val = obj.total ?? obj.points ?? obj.home ?? obj.away ?? 0;
     return typeof val === "number" ? val : Number(val) || 0;
   }
@@ -922,7 +1413,6 @@ export class MultiSportFetcher {
     if (typeof elapsed === "number" && elapsed > 0) return elapsed;
 
     if (isFinished) {
-      // Default match durations by sport
       const durations: Record<string, number> = {
         football: 90,
         basketball: 40,
@@ -961,7 +1451,8 @@ export class MultiSportFetcher {
 
   isRateLimited(api: string): boolean {
     this._checkReset();
-    const limit = api === "oddsApi" ? 1000 :
+    const limit = api === "sportmonks" ? config.sportsApi.sportmonks.rateLimitPerDay :
+                  api === "oddsApi" ? 1000 :
                   api === "footballData" ? 100 :
                   api === "sportapi7" ? 500 :
                   api === "golf" ? 500 : 100;

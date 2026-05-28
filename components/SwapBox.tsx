@@ -10,7 +10,7 @@
 import { useState, useCallback } from "react";
 import { useAccount, useBalance } from "wagmi";
 import { motion, AnimatePresence } from "framer-motion";
-import { contracts, xLayer, USDC_DECIMALS } from "@/lib/contracts";
+import { contracts, xLayerTestnet, USDC_DECIMALS } from "@/lib/contracts";
 import { useSwap } from "@/hooks/useSwap";
 
 interface SwapBoxProps {
@@ -44,7 +44,7 @@ export function SwapBox({
   const { data: usdcBalance } = useBalance({
     address,
     token: contracts.usdc,
-    chainId: xLayer.id,
+    chainId: xLayerTestnet.id,
   });
 
   const feePercent = (currentFee / 100).toFixed(1);

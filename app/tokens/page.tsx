@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAccount } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { oracleApi, type FanTokenInfo, type FanTokenTradeResult } from "@/lib/oracle";
 import {
   TrendingUp,
@@ -14,9 +16,11 @@ import {
   BarChart3,
   ArrowLeftRight,
   ChevronDown,
+  Wallet,
 } from "lucide-react";
 
 export default function TokensPage() {
+  const { address, isConnected } = useAccount();
   const [tokens, setTokens] = useState<FanTokenInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedToken, setSelectedToken] = useState<FanTokenInfo | null>(null);
@@ -43,7 +47,7 @@ export default function TokensPage() {
 
     setTradeLoading(true);
     setTradeResult(null);
-    const result = await oracleApi.tradeToken(selectedToken.symbol, action, amount);
+    const result = await oracleApi.tradeToken(selectedToken.symbol, action, amount, address);
     if (result) {
       setTradeResult(result);
       setSelectedToken((prev) =>
@@ -101,7 +105,7 @@ export default function TokensPage() {
           <AnimatePresence>
             {tokens.map((token, i) => (
               <motion.button
-                key={token.symbol}
+                key={`${token.symbol}-${token.matchId}`}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
@@ -180,6 +184,21 @@ export default function TokensPage() {
               </motion.button>
             ))}
           </AnimatePresence>
+        </div>
+      )}
+
+      {/* ── Wallet Prompt ── */}
+      {!isConnected && (
+        <div className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 text-center">
+          <Wallet className="mx-auto h-8 w-8 text-zinc-600 mb-3" />
+          <h3 className="text-sm font-medium text-zinc-300 mb-2">Connect Your Wallet</h3>
+          <p className="text-xs text-zinc-500 mb-4 max-w-md mx-auto">
+            You need to connect your wallet to buy, sell, and trade fan tokens.
+            Trades interact with the GoalSwap bonding curve on X Layer.
+          </p>
+          <div className="inline-flex">
+            <ConnectButton label="Connect Wallet" accountStatus="avatar" showBalance={false} chainStatus="icon" />
+          </div>
         </div>
       )}
 
@@ -272,53 +291,64 @@ export default function TokensPage() {
                 <ArrowLeftRight className="h-4 w-4 text-zinc-500" />
                 <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Trade</span>
               </div>
-              <div className="flex gap-3 items-end">
-                <div className="flex-1">
-                  <label className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1.5 block">
-                    Amount (tokens)
-                  </label>
-                  <input
-                    type="number"
-                    value={tradeAmount}
-                    onChange={(e) => setTradeAmount(e.target.value)}
-                    placeholder="0"
-                    min="1"
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
-                  />
-                </div>
-                <button
-                  onClick={() => handleTrade("buy")}
-                  disabled={tradeLoading || !tradeAmount}
-                  className="flex-1 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-black transition-all hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  {tradeLoading ? "Processing..." : "Buy"}
-                </button>
-                <button
-                  onClick={() => handleTrade("sell")}
-                  disabled={tradeLoading || !tradeAmount}
-                  className="flex-1 rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-all hover:border-zinc-600 hover:text-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  {tradeLoading ? "Processing..." : "Sell"}
-                </button>
-              </div>
 
-              {/* Trade result */}
-              {tradeResult && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3"
-                >
-                  <p className="text-xs text-emerald-400 font-medium mb-1">
-                    {tradeResult.action === "buy" ? "Purchased" : "Sold"} {tradeResult.amountOut.toLocaleString()} tokens
-                  </p>
-                  <p className="text-[10px] text-zinc-500">
-                    {tradeResult.action === "buy"
-                      ? `Cost: $${tradeResult.amountIn.toFixed(2)}`
-                      : `Received: $${tradeResult.amountOut.toFixed(2)}`}
-                    {" · "}New price: {formatPrice(tradeResult.price)}
-                  </p>
-                </motion.div>
+              {/* Not connected prompt in trade panel */}
+              {!isConnected ? (
+                <div className="flex flex-col items-center gap-3 py-3">
+                  <p className="text-xs text-zinc-500">Connect your wallet to trade tokens</p>
+                  <ConnectButton label="Connect Wallet" accountStatus="avatar" showBalance={false} chainStatus="icon" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-3 items-end">
+                    <div className="flex-1">
+                      <label className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1.5 block">
+                        Amount (tokens)
+                      </label>
+                      <input
+                        type="number"
+                        value={tradeAmount}
+                        onChange={(e) => setTradeAmount(e.target.value)}
+                        placeholder="0"
+                        min="1"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                      />
+                    </div>
+                    <button
+                      onClick={() => handleTrade("buy")}
+                      disabled={tradeLoading || !tradeAmount}
+                      className="flex-1 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-black transition-all hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      {tradeLoading ? "Processing..." : "Buy"}
+                    </button>
+                    <button
+                      onClick={() => handleTrade("sell")}
+                      disabled={tradeLoading || !tradeAmount}
+                      className="flex-1 rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-all hover:border-zinc-600 hover:text-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      {tradeLoading ? "Processing..." : "Sell"}
+                    </button>
+                  </div>
+
+                  {/* Trade result */}
+                  {tradeResult && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3"
+                    >
+                      <p className="text-xs text-emerald-400 font-medium mb-1">
+                        {tradeResult.action === "buy" ? "Purchased" : "Sold"} {tradeResult.amountOut.toLocaleString()} tokens
+                      </p>
+                      <p className="text-[10px] text-zinc-500">
+                        {tradeResult.action === "buy"
+                          ? `Cost: $${tradeResult.amountIn.toFixed(2)}`
+                          : `Received: $${tradeResult.amountOut.toFixed(2)}`}
+                        {" · "}New price: {formatPrice(tradeResult.price)}
+                      </p>
+                    </motion.div>
+                  )}
+                </>
               )}
             </div>
           </motion.div>

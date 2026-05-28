@@ -110,7 +110,13 @@ export default function MatchDetailPage({
 
   const currentFee = liveState?.feeTier ?? detail.feeTier;
   const feeReason = liveState?.feeReason ?? detail.feeReason;
-  const isLive = (liveState?.status ?? detail.isFinished ? "FT" : "LIV") === "LIV";
+  // Resolve match status from liveState (WebSocket), or fall back to detail
+  // Status priority: liveState > detail.isFinished > upcoming
+  const matchStatus = liveState?.status
+    ?? (detail.isFinished ? "FT" : "NS");
+  const isLive = matchStatus === "LIV";
+  const isFinished = matchStatus === "FT";
+  const isUpcoming = matchStatus === "NS";
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -134,7 +140,7 @@ export default function MatchDetailPage({
           {/* Background pattern */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/5 via-transparent to-transparent" />
 
-          {/* Live badge */}
+          {/* Status badge — Live / FT / Upcoming */}
           {isLive && (
             <div className="relative flex items-center gap-1.5 mb-4">
               <span className="relative flex h-2 w-2">
@@ -143,6 +149,20 @@ export default function MatchDetailPage({
               </span>
               <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
                 LIVE {liveState?.minute ?? detail.minute}&apos;
+              </span>
+            </div>
+          )}
+          {isUpcoming && (
+            <div className="relative flex items-center gap-1.5 mb-4">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                📅 UPCOMING
+              </span>
+            </div>
+          )}
+          {isFinished && !isLive && (
+            <div className="relative flex items-center gap-1.5 mb-4">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                🏁 FULL TIME
               </span>
             </div>
           )}
@@ -234,14 +254,26 @@ export default function MatchDetailPage({
             feeReason={feeReason}
           />
 
-          {/* Match Info Card */}
-          {!isLive && detail.isFinished && (
+          {/* Match Info Card — finished */}
+          {isFinished && (
             <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
               <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
                 Match Status
               </h3>
               <p className="text-sm text-zinc-300">
                 This match has finished. Settlement may be in progress.
+              </p>
+            </div>
+          )}
+
+          {/* Match Info Card — upcoming */}
+          {isUpcoming && (
+            <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+              <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                Match Status
+              </h3>
+              <p className="text-sm text-zinc-300">
+                This match hasn&apos;t started yet. Trading will be available once the match goes live.
               </p>
             </div>
           )}

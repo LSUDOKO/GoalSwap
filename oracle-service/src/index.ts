@@ -21,10 +21,11 @@ import { BlockchainWriter } from "./BlockchainWriter.js";
 import { RedisCache } from "./RedisCache.js";
 import { WebSocketServer } from "./websocket-server.js";
 import { WebhookServer } from "./webhook-server.js";
+import { XBot } from "./XBot.js";
 import { getFeeTier } from "./fees.js";
 import { keccak256, stringToHex } from "viem";
-import { ChangeType } from "./types.js";
-import type { MatchState, StateChange, MatchUpdate, MatchMetadata } from "./types.js";
+import { ChangeType, ALL_SPORTS } from "./types.js";
+import type { MatchState, StateChange, MatchUpdate, MatchMetadata, Sport } from "./types.js";
 
 console.log(`
 ╔══════════════════════════════════════════════════════════╗
@@ -48,6 +49,7 @@ const stateValidator = new StateValidator();
 const blockchainWriter = new BlockchainWriter();
 const redisCache = new RedisCache();
 const wsServer = new WebSocketServer();
+const xBot = new XBot();
 const webhookServer = new WebhookServer();
 
 // Wire dependencies
@@ -120,6 +122,9 @@ async function pollCycle(): Promise<void> {
 
       _broadcastWsEvent(change, meta?.homeTeam ?? "Unknown", meta?.awayTeam ?? "Unknown", meta?.sport);
 
+      // XBot: post match updates to X/Twitter
+      xBot.onStateChange(change, meta).catch(() => {});
+
       blockchainWriter.queueUpdate(
         change.matchId,
         change.previousState,
@@ -132,6 +137,10 @@ async function pollCycle(): Promise<void> {
         redisCache.incrementErrorCount().catch(() => {});
       });
     }
+
+    // Periodic summary tweet + mention check
+    xBot.postSummary().catch(() => {});
+    xBot.checkMentions().catch(() => {});
 
     printStats();
   } catch (err) {
@@ -478,6 +487,206 @@ async function seedDemoData(): Promise<void> {
   }
 
   console.log(`[Oracle] ✅ Seeded ${NBA_FIXTURES.length} demo NBA matches`);
+
+  // ── Seed AFL Demo Data ──
+  const AFL_FIXTURES = [
+    { id: 4001, home: "Geelong Cats", away: "Collingwood Magpies", homeScore: 89, awayScore: 76, homeId: 401, awayId: 402 },
+    { id: 4002, home: "Richmond Tigers", away: "Carlton Blues", homeScore: 102, awayScore: 95, homeId: 403, awayId: 404 },
+    { id: 4003, home: "Sydney Swans", away: "Essendon Bombers", homeScore: 71, awayScore: 84, homeId: 405, awayId: 406 },
+  ];
+  await seedSportDemoData("afl", AFL_FIXTURES, 100, "2026-05-26T10:00:00+00:00");
+
+  // ── Seed Baseball Demo Data ──
+  const BASEBALL_FIXTURES = [
+    { id: 5001, home: "NY Yankees", away: "Boston Red Sox", homeScore: 6, awayScore: 4, homeId: 501, awayId: 502 },
+    { id: 5002, home: "LA Dodgers", away: "SF Giants", homeScore: 3, awayScore: 7, homeId: 503, awayId: 504 },
+    { id: 5003, home: "Houston Astros", away: "Atlanta Braves", homeScore: 5, awayScore: 2, homeId: 505, awayId: 506 },
+  ];
+  await seedSportDemoData("baseball", BASEBALL_FIXTURES, 9, "2026-05-27T18:00:00+00:00");
+
+  // ── Seed Formula 1 Demo Data ──
+  const F1_FIXTURES = [
+    { id: 6001, home: "Monaco GP", away: "Circuit de Monaco", homeScore: 1, awayScore: 0, homeId: 601, awayId: 602 },
+    { id: 6002, home: "Italian GP", away: "Monza", homeScore: 1, awayScore: 0, homeId: 603, awayId: 604 },
+  ];
+  await seedSportDemoData("formula1", F1_FIXTURES, 999, "2026-05-24T14:00:00+00:00");
+
+  // ── Seed Handball Demo Data ──
+  const HANDBALL_FIXTURES = [
+    { id: 7001, home: "Paris SG", away: "Barcelona", homeScore: 32, awayScore: 28, homeId: 701, awayId: 702 },
+    { id: 7002, home: "THW Kiel", away: "Aalborg", homeScore: 27, awayScore: 29, homeId: 703, awayId: 704 },
+    { id: 7003, home: "Veszprem", away: "PSG", homeScore: 31, awayScore: 30, homeId: 705, awayId: 706 },
+  ];
+  await seedSportDemoData("handball", HANDBALL_FIXTURES, 60, "2026-05-27T20:00:00+00:00");
+
+  // ── Seed Hockey Demo Data ──
+  const HOCKEY_FIXTURES = [
+    { id: 8001, home: "Edmonton Oilers", away: "Toronto Maple Leafs", homeScore: 4, awayScore: 2, homeId: 801, awayId: 802 },
+    { id: 8002, home: "Montreal Canadiens", away: "Vancouver Canucks", homeScore: 3, awayScore: 5, homeId: 803, awayId: 804 },
+  ];
+  await seedSportDemoData("hockey", HOCKEY_FIXTURES, 60, "2026-05-26T23:00:00+00:00");
+
+  // ── Seed MMA Demo Data ──
+  const MMA_FIXTURES = [
+    { id: 9001, home: "Islam Makhachev", away: "Charles Oliveira", homeScore: 1, awayScore: 0, homeId: 901, awayId: 902, finishType: "Submission R3" },
+    { id: 9002, home: "Alex Pereira", away: "Israel Adesanya", homeScore: 1, awayScore: 0, homeId: 903, awayId: 904, finishType: "KO R2" },
+  ];
+  await seedSportDemoData("mma", MMA_FIXTURES, 5, "2026-05-25T03:00:00+00:00");
+
+  // ── Seed American Football Demo Data ──
+  const AMFOOT_FIXTURES = [
+    { id: 10001, home: "Kansas City Chiefs", away: "San Francisco 49ers", homeScore: 28, awayScore: 24, homeId: 1001, awayId: 1002 },
+    { id: 10002, home: "Dallas Cowboys", away: "Philadelphia Eagles", homeScore: 21, awayScore: 17, homeId: 1003, awayId: 1004 },
+    { id: 10003, home: "Buffalo Bills", away: "Cincinnati Bengals", homeScore: 31, awayScore: 27, homeId: 1005, awayId: 1006 },
+  ];
+  await seedSportDemoData("american-football", AMFOOT_FIXTURES, 60, "2026-05-25T21:00:00+00:00");
+
+  // ── Seed Rugby Demo Data ──
+  const RUGBY_FIXTURES = [
+    { id: 11001, home: "New Zealand All Blacks", away: "South Africa Springboks", homeScore: 32, awayScore: 28, homeId: 1101, awayId: 1102 },
+    { id: 11002, home: "England", away: "Ireland", homeScore: 24, awayScore: 27, homeId: 1103, awayId: 1104 },
+    { id: 11003, home: "France", away: "Australia", homeScore: 35, awayScore: 19, homeId: 1105, awayId: 1106 },
+  ];
+  await seedSportDemoData("rugby", RUGBY_FIXTURES, 80, "2026-05-26T15:00:00+00:00");
+
+  // ── Seed Volleyball Demo Data ──
+  const VOLLEYBALL_FIXTURES = [
+    { id: 12001, home: "Italy", away: "Poland", homeScore: 3, awayScore: 1, homeId: 1201, awayId: 1202 },
+    { id: 12002, home: "Brazil", away: "USA", homeScore: 2, awayScore: 3, homeId: 1203, awayId: 1204 },
+  ];
+  await seedSportDemoData("volleyball", VOLLEYBALL_FIXTURES, 5, "2026-05-27T17:00:00+00:00");
+
+  // ── Seed Golf Demo Data ──
+  const GOLF_FIXTURES = [
+    { id: 13001, home: "PGA Championship", away: "Valhalla GC", homeScore: 1, awayScore: 0, homeId: 1301, awayId: 1302 },
+    { id: 13002, home: "The Memorial", away: "Muirfield Village", homeScore: 1, awayScore: 0, homeId: 1303, awayId: 1304 },
+  ];
+  await seedSportDemoData("golf", GOLF_FIXTURES, 999, "2026-05-23T12:00:00+00:00");
+
+  // ── Seed LIVE matches (in-progress) ──
+  const LIVE_FIXTURES = [
+    { id: 32001, sport: "football" as Sport, home: "Brazil", away: "Argentina", homeScore: 1, awayScore: 0, minute: 67, homeId: 1101, awayId: 1102 },
+    { id: 32002, sport: "basketball" as Sport, home: "LA Lakers", away: "Boston Celtics", homeScore: 78, awayScore: 71, minute: 38, homeId: 1201, awayId: 1202 },
+    { id: 32003, sport: "american-football" as Sport, home: "Kansas City Chiefs", away: "Dallas Cowboys", homeScore: 14, awayScore: 10, minute: 42, homeId: 1301, awayId: 1302 },
+    { id: 32004, sport: "hockey" as Sport, home: "Edmonton Oilers", away: "Toronto Maple Leafs", homeScore: 2, awayScore: 1, minute: 45, homeId: 1401, awayId: 1402 },
+    { id: 32005, sport: "baseball" as Sport, home: "NY Yankees", away: "LA Dodgers", homeScore: 4, awayScore: 2, minute: 7, homeId: 1501, awayId: 1502 },
+  ];
+
+  console.log(`[Oracle] Seeding ${LIVE_FIXTURES.length} LIVE matches...`);
+
+  for (const fixture of LIVE_FIXTURES) {
+    const matchId = keccak256(
+      stringToHex(`live-${fixture.sport}-${fixture.id}-${fixture.homeId}-${fixture.awayId}`),
+    );
+
+    const state: MatchState = {
+      homeScore: fixture.homeScore,
+      awayScore: fixture.awayScore,
+      minute: fixture.minute,
+      redCards: 0,
+      penaltyShootout: false,
+      isFinished: false,
+      lastGoalTimestamp: Math.floor(Date.now() / 1000) - 600,
+      lastUpdateBlock: 0,
+    };
+
+    const matchKey = `${fixture.home.slice(0, 3).toLowerCase()}-${fixture.away.slice(0, 3).toLowerCase()}`;
+
+    await redisCache.setMatchState(matchId, state);
+    stateValidator.seedState(matchId, state, "LIV");
+
+    const meta: MatchMetadata = {
+      matchId,
+      sport: fixture.sport,
+      matchKey,
+      homeTeam: fixture.home,
+      awayTeam: fixture.away,
+      homeLogo: "",
+      awayLogo: "",
+      leagueId: 0,
+      fixtureId: fixture.id,
+      startTime: new Date(Date.now() - 1800000).toISOString(), // started 30min ago
+    };
+
+    await redisCache.setMatchMetadata(matchId, meta);
+
+    wsServer.emitMatchUpdate(matchId, {
+      matchId,
+      sport: fixture.sport,
+      homeTeam: fixture.home,
+      awayTeam: fixture.away,
+      homeScore: state.homeScore,
+      awayScore: state.awayScore,
+      minute: state.minute,
+      status: "LIV",
+      feeTier: getFeeTier(state),
+      feeReason: "Match in progress",
+    });
+  }
+
+  console.log(`[Oracle] ✅ Seeded ${LIVE_FIXTURES.length} LIVE matches across multiple sports`);
+
+  console.log(`[Oracle] ✅ Seeded demo data for all ${ALL_SPORTS.length} sports`);
+}
+
+/**
+ * Generic seed function for any sport's demo data.
+ */
+async function seedSportDemoData(
+  sport: Sport,
+  fixtures: Array<{ id: number; home: string; away: string; homeScore: number; awayScore: number; homeId: number; awayId: number }>,
+  defaultMinute: number,
+  startTime: string,
+): Promise<void> {
+  for (const fixture of fixtures) {
+    const matchId = keccak256(
+      stringToHex(`${sport}-${fixture.id}-${fixture.homeId}-${fixture.awayId}`),
+    );
+
+    const state: MatchState = {
+      homeScore: fixture.homeScore,
+      awayScore: fixture.awayScore,
+      minute: defaultMinute,
+      redCards: 0,
+      penaltyShootout: false,
+      isFinished: true,
+      lastGoalTimestamp: Math.floor(Date.now() / 1000) - 24 * 3600,
+      lastUpdateBlock: 0,
+    };
+
+    const matchKey = `${fixture.home.slice(0, 3).toLowerCase()}-${fixture.away.slice(0, 3).toLowerCase()}`;
+
+    await redisCache.setMatchState(matchId, state);
+    stateValidator.seedState(matchId, state, "FT");
+
+    const meta: MatchMetadata = {
+      matchId,
+      sport,
+      matchKey,
+      homeTeam: fixture.home,
+      awayTeam: fixture.away,
+      homeLogo: "",
+      awayLogo: "",
+      leagueId: 0,
+      fixtureId: fixture.id,
+      startTime,
+    };
+
+    await redisCache.setMatchMetadata(matchId, meta);
+
+    wsServer.emitMatchUpdate(matchId, {
+      matchId,
+      sport,
+      homeTeam: fixture.home,
+      awayTeam: fixture.away,
+      homeScore: state.homeScore,
+      awayScore: state.awayScore,
+      minute: defaultMinute,
+      status: "FT",
+      feeTier: getFeeTier(state),
+      feeReason: "Match finished",
+    });
+  }
 }
 
 // ── Start ──

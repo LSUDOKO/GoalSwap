@@ -208,13 +208,47 @@ export const oracleApi = {
     symbol: string,
     action: "buy" | "sell",
     amount: number,
+    walletAddress?: string,
   ): Promise<FanTokenTradeResult | null> {
     return fetchJson<FanTokenTradeResult>(
       `/api/token/${encodeURIComponent(symbol)}/trade`,
       {
         method: "POST",
-        body: JSON.stringify({ action, amount }),
+        body: JSON.stringify({ action, amount, walletAddress }),
       },
+    );
+  },
+
+  // ═══════════════════════════════════════════════════
+  //  Sportmonks Data Endpoints
+  // ═══════════════════════════════════════════════════
+
+  /** Fetch team details with upcoming fixtures from Sportmonks */
+  getSportmonksTeam(teamId: number): Promise<any | null> {
+    return fetchJson<any>(`/api/sportmonks/team/${teamId}`).then((r) => r?.team ?? null);
+  },
+
+  /** Fetch squad for a team from Sportmonks */
+  getSportmonksSquad(teamId: number): Promise<any[]> {
+    return fetchJson<any>(`/api/sportmonks/squad/${teamId}`).then((r) => r?.squad ?? []);
+  },
+
+  /** Fetch odds for a league from Sportmonks */
+  getSportmonksOdds(leagueId: number): Promise<any | null> {
+    return fetchJson<any>(`/api/sportmonks/odds/${leagueId}`);
+  },
+
+  /** Search teams by name from Sportmonks */
+  searchSportmonksTeams(query: string): Promise<any[]> {
+    return fetchJson<any>(`/api/sportmonks/search/teams/${encodeURIComponent(query)}`).then(
+      (r) => r?.results ?? [],
+    );
+  },
+
+  /** Search players by name from Sportmonks */
+  searchSportmonksPlayers(query: string): Promise<any[]> {
+    return fetchJson<any>(`/api/sportmonks/search/players/${encodeURIComponent(query)}`).then(
+      (r) => r?.results ?? [],
     );
   },
 };

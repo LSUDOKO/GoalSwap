@@ -1,7 +1,7 @@
 "use client";
 
 import { useReadContract } from "wagmi";
-import { contracts, hookAbi, xLayer } from "@/lib/contracts";
+import { contracts, hookAbi, xLayerTestnet } from "@/lib/contracts";
 
 function matchIdToBytes32(matchId: string): `0x${string}` {
   const encoder = new TextEncoder();
@@ -21,7 +21,7 @@ export function useMatchOnChain(matchId: string) {
     abi: hookAbi,
     functionName: "matchStates",
     args: [matchIdBytes],
-    chainId: xLayer.id,
+    chainId: xLayerTestnet.id,
   });
 
   return {
@@ -36,7 +36,7 @@ export function useOracleAddress() {
     address: contracts.hook,
     abi: hookAbi,
     functionName: "oracle",
-    chainId: xLayer.id,
+    chainId: xLayerTestnet.id,
   });
 }
 
@@ -45,7 +45,7 @@ export function useIsPaused() {
     address: contracts.hook,
     abi: hookAbi,
     functionName: "paused",
-    chainId: xLayer.id,
+    chainId: xLayerTestnet.id,
   });
 }
 
@@ -63,6 +63,6 @@ export function useGetFeeTier(poolKey: PoolKeyInput) {
     abi: hookAbi,
     functionName: "getCurrentFee",
     args: [poolKey],
-    chainId: xLayer.id,
+    chainId: xLayerTestnet.id,
   });
 }
