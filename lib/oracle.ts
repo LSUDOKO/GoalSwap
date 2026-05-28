@@ -42,12 +42,15 @@ export interface MatchDetail {
 }
 
 export interface LeaderboardEntry {
+  rank: number;
   address: string;
+  name?: string;
   volume: string;
   pnl: string;
   trades: number;
   trophies: number;
   xp: number;
+  streak?: number;
 }
 
 export interface UserPortfolio {
