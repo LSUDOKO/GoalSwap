@@ -1,0 +1,23 @@
+{
+  "name": "goalswap-arena-subgraph",
+  "version": "1.0.0",
+  "description": "GoalSwap Arena — The Graph subgraph for indexing match, swap, and trophy events",
+  "license": "MIT",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "deploy": "graph deploy --studio goalswap-arena",
+    "create-local": "graph create --node http://localhost:8020 goalswap-arena",
+    "remove-local": "graph remove --node http://localhost:8020 goalswap-arena",
+    "deploy-local": "graph deploy --node http://localhost:8020 --ipfs http://localhost:5001 goalswap-arena",
+    "test": "graph test"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "^0.90.0",
+    "@graphprotocol/graph-ts": "^0.35.0"
+  },
+  "devDependencies": {
+    "assemblyscript": "^0.27.0",
+    "matchstick-as": "^0.6.0"
+  }
+}

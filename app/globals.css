@@ -1,26 +1,110 @@
 @import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import "@rainbow-me/rainbowkit/styles.css";
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: #09090b;
+  --color-foreground: #fafafa;
+  --color-primary: #22c55e;
+  --color-primary-dark: #16a34a;
+  --color-secondary: #3b82f6;
+  --color-accent: #10b981;
+  --color-accent-foreground: #fafafa;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-surface: #18181b;
+  --color-surface-light: #27272a;
+  --color-border: #3f3f46;
+  --color-muted: #a1a1aa;
+  --color-fee-low: #a1a1aa;
+  --color-fee-normal: #eab308;
+  --color-fee-high: #f97316;
+  --color-feevery-high: #ef4444;
+  --color-fee-peak: #a855f7;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* Match card pulse animation for live matches */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.live-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* Goal celebration animation */
+@keyframes goal-flash {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+.goal-flash {
+  animation: goal-flash 0.6s ease-in-out;
+}
+
+/* Fee ticker transitions */
+.fee-ticker {
+  transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+/* Glass card effect */
+.glass-card {
+  background: rgba(24, 24, 27, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(63, 63, 70, 0.5);
+}
+
+/* Highlighted text — emerald gradient + Metamorphous */
+.hl {
+  background: linear-gradient(to right, #34d399, #6ee7b7, #a7f3d0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-family: var(--font-metamorphous);
+  font-weight: 400;
 }

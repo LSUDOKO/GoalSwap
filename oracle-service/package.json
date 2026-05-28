@@ -1,0 +1,32 @@
+{
+  "name": "goalswap-oracle",
+  "version": "1.0.0",
+  "description": "GoalSwap Arena — Real-data oracle service with API-Football polling, WebSocket broadcasting, and on-chain settlement",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "ws-server": "tsx src/websocket-server.ts",
+    "webhook-server": "tsx src/webhook-server.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ioredis": "^5.4.1",
+    "socket.io": "^4.7.5",
+    "viem": "^2.15.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.2",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.15.4",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,18 @@
+[
+  [
+    1718821080,
+    {
+      "userId": 1718821080,
+      "username": "ADORANRO",
+      "firstName": "Arpit",
+      "lastName": "Singh",
+      "language": "en",
+      "createdAt": "2026-05-28T07:26:34.679Z",
+      "lastActive": "2026-05-28T07:26:34.680Z",
+      "goalAlerts": true,
+      "feeSpikeAlerts": true,
+      "settlementAlerts": true,
+      "dailySummary": false
+    }
+  ]
+]

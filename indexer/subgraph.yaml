@@ -1,0 +1,175 @@
+specVersion: 1.2.0
+description: "GoalSwap Arena — World Cup 2026 prediction market subgraph"
+repository: "https://github.com/goalswap-arena/indexer"
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: WorldCupArenaHook
+    network: xlayer
+    source:
+      address: "0x3E19f269DF50d0a8fc32ee774E7C338A8cDF11CF"
+      abi: WorldCupArenaHook
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.10
+      language: wasm/assemblyscript
+      file: ./src/mappings.ts
+      entities:
+        - Match
+        - MarketEvent
+        - Pool
+        - User
+        - Trophy
+        - OracleUpdate
+        - GlobalStat
+      abis:
+        - name: WorldCupArenaHook
+          file: ./abis/WorldCupArenaHook.json
+      eventHandlers:
+        - event: MatchStateUpdated(indexed bytes32,uint8,uint8,uint16,address,uint256)
+          handler: handleMatchStateUpdated
+        - event: GoalScored(indexed bytes32,uint8,uint8,uint16,uint256)
+          handler: handleGoalScored
+        - event: MatchSettled(indexed bytes32,uint8,uint8)
+          handler: handleMatchSettled
+        - event: TrophyMinted(indexed address,indexed uint256,indexed bytes32)
+          handler: handleHookTrophyMinted
+        - event: PoolRegistered(indexed (address,address,uint24,int24,address),uint8,indexed bytes32,address)
+          handler: handlePoolRegistered
+        - event: OracleAuthorized(indexed address)
+          handler: handleOracleAuthorized
+        - event: OracleDeauthorized(indexed address)
+          handler: handleOracleDeauthorized
+        - event: OracleUpdated(indexed address,indexed address)
+          handler: handleOracleUpdated
+
+  - kind: ethereum/contract
+    name: OutcomeTokenFactory
+    network: xlayer
+    source:
+      address: "0x2CD9fd3078932A9fbC8cA9384FA6a75536587022"
+      abi: OutcomeTokenFactory
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.10
+      language: wasm/assemblyscript
+      file: ./src/mappings.ts
+      entities:
+        - Match
+        - OutcomeToken
+        - GlobalStat
+      abis:
+        - name: OutcomeTokenFactory
+          file: ./abis/OutcomeTokenFactory.json
+        - name: OutcomeToken
+          file: ./abis/OutcomeToken.json
+        - name: ERC20
+          file: ./abis/ERC20.json
+      eventHandlers:
+        - event: MatchTokensCreated(indexed bytes32,address,address,address,address,(address,address,uint24,int24,address),(address,address,uint24,int24,address),(address,address,uint24,int24,address))
+          handler: handleMatchTokensCreated
+
+  - kind: ethereum/contract
+    name: GoalSwapTrophies
+    network: xlayer
+    source:
+      address: "0x6788921d3d3956C10554f1aEc8d9d4B279c9A735"
+      abi: GoalSwapTrophies
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.10
+      language: wasm/assemblyscript
+      file: ./src/mappings.ts
+      entities:
+        - Trophy
+        - User
+        - GlobalStat
+      abis:
+        - name: GoalSwapTrophies
+          file: ./abis/GoalSwapTrophies.json
+      eventHandlers:
+        - event: TrophyMinted(indexed address,indexed uint256,indexed uint256,bytes32)
+          handler: handleTrophyMinted
+
+  - kind: ethereum/contract
+    name: BracketNFT
+    network: xlayer
+    source:
+      address: "0xE3fD44B189F481E0FBE887b0F0dE938d4107D9F3"
+      abi: BracketNFT
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.10
+      language: wasm/assemblyscript
+      file: ./src/mappings.ts
+      entities:
+        - Bracket
+        - User
+        - GlobalStat
+      abis:
+        - name: BracketNFT
+          file: ./abis/BracketNFT.json
+      eventHandlers:
+        - event: BracketMinted(indexed address,indexed uint256,bytes32[],uint256,uint256)
+          handler: handleBracketMinted
+        - event: BracketValidated(indexed uint256,bool)
+          handler: handleBracketValidated
+
+templates:
+  - kind: ethereum/contract
+    name: OutcomeTokenTemplate
+    network: xlayer
+    abi: OutcomeToken
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.10
+      language: wasm/assemblyscript
+      file: ./src/mappings.ts
+      entities:
+        - OutcomeToken
+        - User
+        - GlobalStat
+      abis:
+        - name: OutcomeToken
+          file: ./abis/OutcomeToken.json
+      eventHandlers:
+        - event: Settled(indexed bool)
+          handler: handleOutcomeTokenSettled
+        - event: Redeemed(indexed address,uint256)
+          handler: handleRedeemed
+        - event: LosingTokensBurned(indexed address,uint256)
+          handler: handleLosingTokensBurned
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleOutcomeTokenTransfer
+
+  # Spawned by handlePoolRegistered when teamToken != address(0).
+  - kind: ethereum/contract
+    name: FanTokenTemplate
+    network: xlayer
+    abi: FanToken
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.10
+      language: wasm/assemblyscript
+      file: ./src/mappings.ts
+      entities:
+        - FanToken
+        - Match
+        - GlobalStat
+      abis:
+        - name: FanToken
+          file: ./abis/FanToken.json
+        - name: ERC20
+          file: ./abis/ERC20.json
+      eventHandlers:
+        - event: TokensPurchased(indexed address,uint256,uint256,uint256)
+          handler: handleTokensPurchased
+        - event: TokensSold(indexed address,uint256,uint256,uint256)
+          handler: handleTokensSold
+        - event: V4PoolCreated((address,address,uint24,int24,address))
+          handler: handleV4PoolCreated

@@ -1,0 +1,26 @@
+{
+  "name": "goalswap-telegram-bot",
+  "version": "1.0.0",
+  "description": "GoalSwap Arena — Telegram Bot (@GoalSwapArenaBot)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-telegram-bot-api": "^0.66.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.2",
+    "@types/node-telegram-bot-api": "^0.64.7",
+    "tsx": "^4.15.4",
+    "typescript": "^5.4.5"
+  }
+}

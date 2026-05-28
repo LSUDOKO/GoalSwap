@@ -1,0 +1,379 @@
+"""
+GoalSwap Arena — The Graph Subgraph Schema
+
+Indexes events from:
+  - WorldCupArenaHook
+  - OutcomeTokenFactory
+  - OutcomeToken
+  - GoalSwapTrophies
+  - FanToken
+  - BracketNFT
+"""
+
+type Match @entity {
+  "bytes32 matchId"
+  id: ID!
+
+  "Team names (set on factory event)"
+  homeTeam: String
+  awayTeam: String
+
+  "Current match state"
+  homeScore: Int!
+  awayScore: Int!
+  minute: Int!
+  redCards: Int!
+  penaltyShootout: Boolean!
+  isFinished: Boolean!
+
+  "Last goal timestamp (unix seconds)"
+  lastGoalTimestamp: BigInt!
+
+  "Last update block"
+  lastUpdateBlock: BigInt!
+
+  "Fee tier & reason at last state update"
+  feeTier: Int!
+  feeReason: String!
+
+  "Oracle who last updated"
+  lastOracle: Bytes
+
+  "Last updated timestamp"
+  lastUpdatedAt: BigInt!
+
+  "Match status string: NS / LIV / FT"
+  status: String!
+
+  "Associated pools"
+  pools: [Pool!]! @derivedFrom(field: "match")
+
+  "Market events (goals, cards, etc.)"
+  events: [MarketEvent!]! @derivedFrom(field: "match")
+
+  "Trophies minted for this match"
+  trophies: [Trophy!]! @derivedFrom(field: "match")
+
+  "Total volume in USD"
+  volumeUSD: BigDecimal!
+
+  "Number of unique traders"
+  traderCount: Int!
+
+  "Aggregated outcome tokens"
+  homeWinToken: Bytes
+  drawToken: Bytes
+  awayWinToken: Bytes
+
+  "When tokens were created"
+  tokensCreatedAt: BigInt
+
+  "Settlement info"
+  settledAt: BigInt
+}
+
+type Pool @entity {
+  "PoolId (keccak256 of PoolKey)"
+  id: ID!
+
+  "Associated match"
+  match: Match!
+
+  "Market type: MATCH_PREDICTION, FAN_TOKEN, META_MARKET"
+  marketType: MarketType!
+
+  "Currency0 (usually USDC) — not populated (poolKey is indexed)"
+  currency0: Bytes
+
+  "Currency1 (outcome token or fan token) — not populated (poolKey is indexed)"
+  currency1: Bytes
+
+  "Tick spacing — not populated (poolKey is indexed)"
+  tickSpacing: Int
+
+  "Whether this pool uses dynamic fees"
+  dynamicFee: Boolean!
+
+  "Whether pool is settled"
+  isSettled: Boolean!
+
+  "Team token address (for fan tokens)"
+  teamToken: Bytes
+
+  "Volume in this pool (USD)"
+  volumeUSD: BigDecimal!
+
+  "Number of swaps in this pool"
+  swapCount: Int!
+
+  "Creation block"
+  createdAtBlock: BigInt!
+
+  "Registration block"
+  registeredAtBlock: BigInt!
+}
+
+type User @entity {
+  "Wallet address"
+  id: ID!
+
+  "Total volume across all matches"
+  totalVolumeUSD: BigDecimal!
+
+  "Total PnL (realized + unrealized)"
+  totalPnL: BigDecimal!
+
+  "Total XP earned"
+  xp: BigInt!
+
+  "Current trading streak"
+  streak: Int!
+
+  "Number of distinct trophies"
+  trophyCount: Int!
+
+  "User's trophies"
+  trophies: [Trophy!]! @derivedFrom(field: "owner")
+
+  "First swap timestamp"
+  firstSeenAt: BigInt!
+
+  "Last swap timestamp"
+  lastSeenAt: BigInt!
+
+  "Number of swaps"
+  swapCount: Int!
+
+  "Volume per match (JSON string of matchId -> volume)"
+  matchVolumes: String
+}
+
+type Trophy @entity {
+  "tokenId"
+  id: ID!
+
+  "Owner address"
+  owner: User!
+
+  "Trophy tier (1-5)"
+  tier: Int!
+
+  "Tier name"
+  tierName: String!
+
+  "Associated match ID"
+  match: Match
+
+  "Match ID as bytes32"
+  matchId: Bytes
+
+  "Block number when minted"
+  blockNumber: BigInt!
+
+  "Timestamp when minted"
+  timestamp: BigInt!
+
+  "Transaction hash"
+  txHash: Bytes!
+}
+
+type OutcomeToken @entity {
+  "Token address"
+  id: ID!
+
+  "Token name"
+  name: String!
+
+  "Token symbol"
+  symbol: String!
+
+  "Match ID this token belongs to"
+  match: Match!
+
+  "Outcome index (0=Home, 1=Draw, 2=Away)"
+  outcomeIndex: Int!
+
+  "Whether this token is settled"
+  isSettled: Boolean!
+
+  "Whether this is the winning token"
+  isWinner: Boolean!
+
+  "Total supply"
+  totalSupply: BigInt!
+
+  "Total burned supply (losing tokens)"
+  burnedSupply: BigInt!
+
+  "Number of holders"
+  holderCount: Int!
+
+  "When settled"
+  settledAt: BigInt
+}
+
+type FanToken @entity {
+  "Token address"
+  id: ID!
+
+  "Team name"
+  teamName: String!
+
+  "Token symbol"
+  symbol: String!
+
+  "Associated match ID"
+  match: Match!
+
+  "Bonding curve progress (basis points 0-10000)"
+  bondingCurveProgress: Int!
+
+  "Total minted supply"
+  totalMinted: BigInt!
+
+  "Max supply"
+  maxSupply: BigInt!
+
+  "Current price in USDC (6 decimals)"
+  currentPrice: BigInt!
+
+  "Total volume"
+  totalVolume: BigInt!
+
+  "Jackpot balance"
+  jackpotBalance: BigInt!
+
+  "Whether V4 pool has been created"
+  poolCreated: Boolean!
+
+  "Number of buys/sells"
+  tradeCount: Int!
+
+  "Number of holders"
+  holderCount: Int!
+}
+
+type Bracket @entity {
+  "Token ID"
+  id: ID!
+
+  "Owner address"
+  owner: Bytes!
+
+  "Token ID as integer"
+  tokenId: BigInt!
+
+  "Predicted match path"
+  predictedPath: [Bytes!]!
+
+  "Hash of the full path"
+  predictionHash: Bytes!
+
+  "Stake amount in USDC"
+  stakeAmount: BigInt!
+
+  "Whether validated"
+  isValidated: Boolean!
+
+  "Whether correct"
+  isCorrect: Boolean!
+
+  "Number of matches in path"
+  matchCount: Int!
+
+  "Creation timestamp"
+  createdAt: BigInt!
+
+  "Block number when minted"
+  blockNumber: BigInt!
+
+  "Transaction hash"
+  txHash: Bytes!
+}
+
+type MarketEvent @entity {
+  "matchId + eventType + timestamp"
+  id: ID!
+
+  "Associated match"
+  match: Match!
+
+  "Event type: GOAL_RECORDED, MATCH_FINISHED, MATCH_UPDATED"
+  eventType: String!
+
+  "Minute of the event"
+  minute: Int!
+
+  "Home score at time of event"
+  homeScore: Int!
+
+  "Away score at time of event"
+  awayScore: Int!
+
+  "Block number"
+  blockNumber: BigInt!
+
+  "Timestamp"
+  timestamp: BigInt!
+
+  "Transaction hash"
+  txHash: Bytes!
+}
+
+type OracleUpdate @entity {
+  "txHash + logIndex"
+  id: ID!
+
+  "Oracle address"
+  oracle: Bytes!
+
+  "Update type: AUTHORIZED, DEAUTHORIZED, UPDATED"
+  updateType: String!
+
+  "Target oracle address"
+  targetOracle: Bytes!
+
+  "Block number"
+  blockNumber: BigInt!
+
+  "Timestamp"
+  timestamp: BigInt!
+
+  "Transaction hash"
+  txHash: Bytes!
+}
+
+type GlobalStat @entity {
+  "Singleton ID: 'global'"
+  id: ID!
+
+  "Total volume across all matches"
+  totalVolumeUSD: BigDecimal!
+
+  "Total number of swaps"
+  totalSwaps: Int!
+
+  "Total number of users"
+  totalUsers: Int!
+
+  "Total number of matches"
+  totalMatches: Int!
+
+  "Total number of trophies minted"
+  totalTrophies: Int!
+
+  "Total number of brackets minted"
+  totalBrackets: Int!
+
+  "XP leaderboard (JSON string array of address + XP)"
+  xpLeaderboard: String
+
+  "Last updated timestamp"
+  lastUpdatedAt: BigInt!
+}
+
+enum MarketType {
+  MATCH_PREDICTION
+  FAN_TOKEN
+  META_MARKET
+}
