@@ -602,7 +602,6 @@ export class MultiSportFetcher {
         }
       }
 
-      const scheduledFixtures = todayFixtures?.data ?? [];
       const existingIds = new Set(matches.map((m) => m.matchId));
 
       for (const fixture of scheduledFixtures) {
