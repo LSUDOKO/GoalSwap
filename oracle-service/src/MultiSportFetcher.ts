@@ -177,8 +177,8 @@ export class MultiSportFetcher {
   private golfClient: AxiosInstance;
 
   constructor() {
-    this.apiSportsKey = process.env.API_SPORTS_KEY ?? "56aca21933852277b895c3442d1a1e62";
-    this.rapidApiKey = process.env.RAPIDAPI_KEY ?? "dccb62e86bmsh3ef612c3a52fe98p15541fjsn08263f6e5100";
+    this.apiSportsKey = process.env.API_SPORTS_KEY ?? "";
+    this.rapidApiKey = process.env.RAPIDAPI_KEY ?? "";
 
     // Initialize api-sports.io clients for all sports
     const sportsToInit = Object.keys(SPORT_INFO) as Sport[];

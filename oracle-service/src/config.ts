@@ -120,19 +120,19 @@ export const config = {
       rateLimitPerDay: 500,
     },
     oddsApi: {
-      key: process.env.ODDS_API_KEY ?? "c9b93316ffff0baca88ae1d3850a3a6c",
+      key: process.env.ODDS_API_KEY ?? "",
       baseUrl: "https://api.the-odds-api.com/v4",
       pollingIntervalMs: 300_000,
       rateLimitPerDay: 1000,
     },
     footballData: {
-      key: process.env.FOOTBALL_DATA_KEY ?? "8f1923be8e2f4d42af418d50095dc008",
+      key: process.env.FOOTBALL_DATA_KEY ?? "",
       baseUrl: "https://api.football-data.org/v4",
       pollingIntervalMs: 60_000,
       rateLimitPerDay: 100,
     },
     sportapi7: {
-      key: process.env.RAPIDAPI_KEY ?? "dccb62e86bmsh3ef612c3a52fe98p15541fjsn08263f6e5100",
+      key: process.env.RAPIDAPI_KEY ?? "",
       baseUrl: "https://sportapi7.p.rapidapi.com/api/v1",
       pollingIntervalMs: 60_000,
       rateLimitPerDay: 500,
@@ -141,7 +141,7 @@ export const config = {
 
   // ── X (Twitter) Bot ──
   twitter: {
-    rapidApiKey: process.env.RAPIDAPI_KEY ?? "dccb62e86bmsh3ef612c3a52fe98p15541fjsn08263f6e5100",
+    rapidApiKey: process.env.RAPIDAPI_KEY ?? "",
     apiBaseUrl: "https://twitter241.p.rapidapi.com",
   },
 
