@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Inter } from "next/font/google";
 import { Josefin_Sans, Metamorphous } from "next/font/google";
 import "./globals.css";
 import "@rainbow-me/rainbowkit/styles.css";
@@ -7,6 +7,12 @@ import { Providers } from "./providers";
 import { Header } from "@/components/ui/header-2";
 import { ConditionalFooter } from "@/components/ConditionalFooter";
 import { PageTransition } from "@/components/PageTransition";
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,7 +63,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${josefinSans.variable} ${metamorphous.variable} h-full antialiased dark`}
+      className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} ${josefinSans.variable} ${metamorphous.variable} h-full antialiased dark`}
     >
       <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100 font-[family-name:var(--font-josefin-sans)]" suppressHydrationWarning>
         <Providers>

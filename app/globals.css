@@ -2,126 +2,105 @@
 @import "@rainbow-me/rainbowkit/styles.css";
 
 @theme inline {
-  --color-background: #09090b;
-  --color-foreground: #fafafa;
-  --color-primary: #22c55e;
-  --color-primary-dark: #16a34a;
-  --color-secondary: #3b82f6;
-  --color-accent: #10b981;
-  --color-accent-foreground: #fafafa;
-  --color-danger: #ef4444;
-  --color-warning: #f59e0b;
-  --color-surface: #18181b;
-  --color-surface-light: #27272a;
-  --color-border: #3f3f46;
-  --color-muted: #a1a1aa;
+  --color-background: #05070B;
+  --color-surface-secondary: #0A0F16;
+  --color-card: #0F141D;
+  --color-card-hover: #131B26;
+  --color-border: rgba(255,255,255,0.06);
+  --color-primary: #00E68A;
+  --color-primary-glow: rgba(0,230,138,0.25);
+  --color-success: #00FFAA;
+  --color-warning: #FFD84D;
+  --color-purple: #8B5CF6;
+  --color-foreground: #FFFFFF;
+  --color-foreground-secondary: rgba(255,255,255,0.72);
+  --color-foreground-muted: rgba(255,255,255,0.45);
   --color-fee-low: #a1a1aa;
   --color-fee-normal: #eab308;
   --color-fee-high: #f97316;
   --color-feevery-high: #ef4444;
   --color-fee-peak: #a855f7;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   background: var(--color-background);
   color: var(--color-foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
-}
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+/* Hide scrollbar utility */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 
-::-webkit-scrollbar-thumb {
-  background: #3f3f46;
-  border-radius: 3px;
-}
+/* ── Animations ── */
 
-::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
-}
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.live-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
 
-/* Match card pulse animation for live matches */
-@keyframes pulse-dot {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-
-.live-dot {
-  animation: pulse-dot 1.5s ease-in-out infinite;
-}
-
-/* Goal celebration animation */
 @keyframes goal-flash {
-  0% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-  }
-  50% {
-    transform: scale(1.05);
-    box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
-  }
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
-  }
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 230, 138, 0.7); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(0, 230, 138, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 230, 138, 0); }
 }
+.goal-flash { animation: goal-flash 0.6s ease-in-out; }
 
-.goal-flash {
-  animation: goal-flash 0.6s ease-in-out;
-}
+.fee-ticker { transition: background-color 0.5s ease, color 0.5s ease; }
 
-/* Fee ticker transitions */
-.fee-ticker {
-  transition: background-color 0.5s ease, color 0.5s ease;
-}
-
-/* Floating orb drift animation */
 @keyframes drift {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  25% {
-    transform: translate(30px, -20px) scale(1.05);
-  }
-  50% {
-    transform: translate(-10px, 20px) scale(0.95);
-  }
-  75% {
-    transform: translate(20px, 10px) scale(1.02);
-  }
+  0%,100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(30px, -20px) scale(1.05); }
+  50% { transform: translate(-10px, 20px) scale(0.95); }
+  75% { transform: translate(20px, 10px) scale(1.02); }
 }
 
-/* Glass card effect */
+@keyframes slow-drift { 0%,100% { transform: translate(0, 0); } 33% { transform: translate(20px, -15px); } 66% { transform: translate(-15px, 10px); } }
+
+@keyframes score-glow { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+@keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+@keyframes gauge-fill { from { stroke-dashoffset: 283; } }
+
+@keyframes bonus-glow { 0%,100% { box-shadow: 0 0 20px rgba(0, 230, 138, 0.15); } 50% { box-shadow: 0 0 40px rgba(0, 230, 138, 0.3); } }
+
+@keyframes countdown-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* ── Glass Card Effects ── */
 .glass-card {
-  background: rgba(24, 24, 27, 0.8);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(63, 63, 70, 0.5);
+  background: rgba(15, 20, 29, 0.8);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.06);
 }
 
-/* Highlighted text — emerald gradient + Metamorphous */
+.glass-card-premium {
+  background: rgba(15, 20, 29, 0.6);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ── Highlighted Text ── */
 .hl {
-  background: linear-gradient(to right, #34d399, #6ee7b7, #a7f3d0);
+  background: linear-gradient(to right, #00E68A, #00FFAA, #8B5CF6);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  font-family: var(--font-metamorphous);
   font-weight: 400;
 }
+
+/* ── Tabular Numbers ── */
+.tabular-nums { font-variant-numeric: tabular-nums; }

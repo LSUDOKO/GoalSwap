@@ -1,8 +1,9 @@
 /**
  * GoalSwap Arena — SwapBox
  *
- * Neo-Iridescent betting terminal with frosted glassmorphism,
- * team-colored outcomes, and a liquid gradient CTA.
+ * Premium bet terminal. Dominant CTA with glow/scale,
+ * live payout calculation, strong visual hierarchy.
+ * Design: Polymarket terminal × Stripe checkout.
  */
 
 "use client";
@@ -13,6 +14,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { contracts, xLayerTestnet, USDC_DECIMALS } from "@/lib/contracts";
 import { useSwap } from "@/hooks/useSwap";
 import type { FlagPalette } from "@/lib/flagColors";
+import { cn } from "@/lib/utils";
+import {
+  Trophy,
+  TrendingUp,
+  TrendingDown,
+  Zap,
+  Shield,
+  ArrowRight,
+  Wallet,
+  CheckCircle,
+  Sparkles,
+} from "lucide-react";
 
 interface SwapBoxProps {
   matchId: string;
@@ -46,8 +59,19 @@ export function SwapBox({
     chainId: xLayerTestnet.id,
   });
 
-  const feePercent = (currentFee / 100).toFixed(1);
-  const isAmountValid = amount && parseFloat(amount) > 0;
+  const feePct = currentFee / 100;
+  const enteredAmount = parseFloat(amount) || 0;
+  const isAmountValid = enteredAmount > 0;
+
+  // Live payout: stake minus fee = tokens received
+  const predictedTokens = isAmountValid
+    ? (enteredAmount / (1 + feePct / 100)).toFixed(2)
+    : "0.00";
+
+  // Fee in USDC
+  const feeAmount = isAmountValid
+    ? (enteredAmount - enteredAmount / (1 + feePct / 100)).toFixed(2)
+    : "0.00";
 
   const handleSwap = useCallback(async () => {
     if (!isAmountValid) return;
@@ -58,142 +82,148 @@ export function SwapBox({
     });
   }, [amount, selectedOutcome, matchId, executeSwap, isAmountValid]);
 
-  const predictedTokens = amount
-    ? (parseFloat(amount) / (1 + currentFee / 10000)).toFixed(2)
-    : "0.00";
-
-  // ── Outcome buttons ────────────────────────────────
+  // ── Outcome buttons ──
   const outcomeButtons: Array<{
     key: Outcome;
     label: string;
     accent: string;
+    icon: React.ReactNode;
   }> = [
     {
       key: "home",
-      label: `${homeTeam}`,
-      accent: homePalette?.accent ?? "#22c55e",
+      label: homeTeam,
+      accent: homePalette?.accent ?? "#00E68A",
+      icon: <TrendingUp className="h-3.5 w-3.5" />,
     },
     {
       key: "draw",
       label: "Draw",
-      accent: "#a1a1aa",
+      accent: "#8B5CF6",
+      icon: <span className="text-[10px] font-black">=</span>,
     },
     {
       key: "away",
-      label: `${awayTeam}`,
-      accent: awayPalette?.accent ?? "#22c55e",
+      label: awayTeam,
+      accent: awayPalette?.accent ?? "#00E68A",
+      icon: <TrendingDown className="h-3.5 w-3.5" />,
     },
   ];
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-zinc-900/70 backdrop-blur-xl p-5 sm:p-6 shadow-[0_0_50px_-20px_rgba(0,0,0,0.6)]">
-      {/* Header */}
+    <div className="rounded-2xl border border-white/[0.06] bg-card backdrop-blur-2xl p-6 shadow-[0_0_80px_-30px_rgba(0,0,0,0.5)]">
+      {/* ── Header ── */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500/20 via-teal-500/20 to-purple-500/10 border border-white/[0.08]">
-            <span className="text-xs font-black text-emerald-400">$</span>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-purple-500/10 border border-emerald-500/20 shadow-[0_0_20px_-5px_rgba(0,230,138,0.15)]">
+            <Trophy className="h-4 w-4 text-emerald-400" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-zinc-100 uppercase tracking-wider">
-              Bet Terminal
-            </h3>
-            <p className="text-[10px] text-zinc-600 mt-0.5">
-              Predict &amp; earn USDC
-            </p>
+            <h3 className="text-sm font-bold text-white">Place Your Bet</h3>
+            <p className="text-xs text-zinc-500">Predict the outcome</p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-800/50 border border-white/[0.04]">
+
+        {/* Live odds badge */}
+        <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 border border-emerald-500/20">
           <span className="relative flex h-1.5 w-1.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
           </span>
-          <span className="text-[9px] font-semibold text-emerald-400 uppercase tracking-wider">
-            Live odds
+          <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-[0.12em]">
+            Live
           </span>
         </div>
       </div>
 
       {/* ── Outcome Selection ── */}
-      <div className="mb-5 space-y-2.5">
+      <div className="grid grid-cols-3 gap-2.5 mb-6">
         {outcomeButtons.map((o) => {
           const isSelected = selectedOutcome === o.key;
           const isDraw = o.key === "draw";
           return (
             <motion.button
               key={o.key}
-              onClick={() => {
-                setSelectedOutcome(o.key);
-                reset();
-              }}
-              className={`relative w-full rounded-lg border py-3 px-4 text-left transition-all duration-200 ${
+              onClick={() => { setSelectedOutcome(o.key); reset(); }}
+              whileTap={{ scale: 0.96 }}
+              className={cn(
+                "relative flex flex-col items-center gap-2 rounded-xl border py-4 px-3 transition-all duration-200",
                 isSelected
-                  ? "border-emerald-500/50 bg-emerald-500/8 text-emerald-300 shadow-[0_0_20px_-5px_rgba(16,185,129,0.15)]"
-                  : "border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.10] hover:text-zinc-300 hover:bg-white/[0.05]"
-              }`}
-              whileTap={{ scale: 0.98 }}
+                  ? "border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_30px_-10px_rgba(0,230,138,0.2)]"
+                  : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.10]",
+              )}
             >
-              {/* Selected indicator glow bar */}
+              {/* Top accent line */}
+              <div
+                className={cn(
+                  "absolute top-0 left-3 right-3 h-0.5 rounded-full transition-opacity",
+                  isSelected ? "opacity-100" : "opacity-0",
+                )}
+                style={{
+                  background: `linear-gradient(90deg, ${o.accent}, transparent)`,
+                }}
+              />
+
+              {/* Icon */}
+              <div
+                className={cn(
+                  "flex h-7 w-7 items-center justify-center rounded-full transition-colors",
+                  isSelected
+                    ? "text-white"
+                    : "text-zinc-500",
+                )}
+                style={{
+                  background: isSelected ? `${o.accent}22` : "transparent",
+                  border: `1px solid ${isSelected ? `${o.accent}44` : "rgba(255,255,255,0.06)"}`,
+                }}
+              >
+                <span className={isSelected ? "text-white" : "text-zinc-500"}>{o.icon}</span>
+              </div>
+
+              <span
+                className={cn(
+                  "text-xs font-semibold leading-tight text-center transition-colors",
+                  isSelected ? "text-white" : "text-zinc-400",
+                )}
+              >
+                {o.label}
+              </span>
+
+              {/* Selected indicator */}
               {isSelected && (
                 <motion.div
-                  layoutId="outcome-glow"
-                  className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.6)]"
+                  layoutId="selected-outcome-terminal"
+                  className="absolute -inset-px rounded-xl border-2 border-emerald-500/30 pointer-events-none"
                   transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 />
               )}
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {/* Color dot with glow */}
-                  {!isDraw && (
-                    <span
-                      className="h-2.5 w-2.5 rounded-full shadow-[0_0_8px]"
-                      style={{
-                        backgroundColor: o.accent,
-                        boxShadow: `0 0 8px ${o.accent}66`,
-                      }}
-                    />
-                  )}
-                  {isDraw && (
-                    <span className="h-2.5 w-2.5 rounded-full bg-zinc-600 ring-1 ring-white/[0.06]" />
-                  )}
-                  <span className="text-sm font-medium">{o.label}</span>
-                </div>
-
-                {isSelected && (
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
-                    Selected
-                  </span>
-                )}
-              </div>
             </motion.button>
           );
         })}
       </div>
 
-      {/* ── Amount Input ── */}
+      {/* ── Stake Input — Large, dominant ── */}
       <div className="mb-5">
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+        <div className="flex items-center justify-between mb-2.5">
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
             Stake Amount
           </label>
           {usdcBalance && (
             <button
               onClick={() =>
                 setAmount(
-                  (Number(usdcBalance.formatted) / 10 ** USDC_DECIMALS).toFixed(
-                    2,
-                  ),
+                  (Number(usdcBalance.formatted) / 10 ** USDC_DECIMALS).toFixed(2),
                 )
               }
-              className="text-xs text-emerald-400/60 hover:text-emerald-400 transition-colors"
+              className="flex items-center gap-1 text-xs text-emerald-400/60 hover:text-emerald-400 transition-colors"
             >
-              Balance:{" "}
-              {(Number(usdcBalance.formatted) / 10 ** USDC_DECIMALS).toFixed(2)}{" "}
-              USDC
+              <Wallet className="h-3 w-3" />
+              {(Number(usdcBalance.formatted) / 10 ** USDC_DECIMALS).toFixed(2)} USDC
             </button>
           )}
         </div>
+
         <div className="relative">
+          {/* Big input */}
           <input
             type="number"
             value={amount}
@@ -201,17 +231,19 @@ export function SwapBox({
             placeholder="0.00"
             min="0"
             step="0.01"
-            className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] pl-4 pr-20 py-3 text-base text-zinc-100 placeholder-zinc-600 outline-none transition-all focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 font-semibold"
+            className="w-full rounded-xl border border-white/[0.08] bg-black/40 pl-5 pr-24 py-4 text-2xl font-bold text-white placeholder-zinc-700 outline-none transition-all focus:border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/10 font-[family-name:var(--font-inter)]"
             disabled={loading}
           />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            <span className="text-[11px] font-bold text-zinc-400 bg-zinc-800/70 px-2.5 py-1 rounded-md border border-white/[0.06]">
+
+          {/* USDC badge right side */}
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+            <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-400 border border-emerald-500/20">
               USDC
             </span>
-            {parseFloat(amount) > 0 && (
+            {enteredAmount > 0 && (
               <button
                 onClick={() => setAmount("")}
-                className="text-zinc-600 hover:text-zinc-400 transition-colors px-1"
+                className="flex h-6 w-6 items-center justify-center rounded-md bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-500 hover:text-zinc-300 transition-all"
               >
                 ✕
               </button>
@@ -220,34 +252,48 @@ export function SwapBox({
         </div>
       </div>
 
-      {/* ── Receipt Preview ── */}
+      {/* ── Live Payout Calculation ── */}
       <AnimatePresence>
-        {amount && parseFloat(amount) > 0 && (
+        {isAmountValid && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             className="mb-5 overflow-hidden"
           >
-            <div className="rounded-lg border border-white/[0.06] bg-black/40 backdrop-blur-sm p-4 space-y-3">
+            <div className="rounded-xl border border-white/[0.06] bg-black/40 backdrop-blur-sm p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-500">Payout</span>
-                <span className="text-sm font-bold text-emerald-400">
-                  +{predictedTokens} tokens
+                <span className="text-xs text-zinc-500">You Receive</span>
+                <span className="text-lg font-bold text-emerald-400 tabular-nums">
+                  {predictedTokens} <span className="text-xs font-medium text-emerald-400/70">tokens</span>
                 </span>
               </div>
-              <div className="h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+              <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-500">Fee</span>
-                <span className="text-sm font-semibold text-yellow-400">
-                  {feePercent}%
+                <span className="text-sm font-semibold text-yellow-400/90 tabular-nums">
+                  {feeAmount} USDC <span className="text-[10px] text-zinc-500 font-normal">({(feePct).toFixed(1)}%)</span>
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-500">Reason</span>
-                <span className="text-xs text-zinc-400 text-right max-w-[200px] truncate">
+                <span className="text-xs text-zinc-400 text-right max-w-[180px] truncate">
                   {feeReason}
                 </span>
+              </div>
+              {/* Fee progress bar */}
+              <div className="h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min((feePct / 10) * 100, 100)}%`,
+                    background: feePct >= 5
+                      ? "linear-gradient(90deg, #f97316, #ef4444)"
+                      : feePct >= 3
+                        ? "linear-gradient(90deg, #eab308, #f97316)"
+                        : "linear-gradient(90deg, #00E68A, #10b981)",
+                  }}
+                />
               </div>
             </div>
           </motion.div>
@@ -261,8 +307,9 @@ export function SwapBox({
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-2.5 text-xs text-red-400"
+            className="mb-4 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-xs text-red-400 flex items-center gap-2"
           >
+            <Shield className="h-3.5 w-3.5 shrink-0" />
             {error}
           </motion.div>
         )}
@@ -275,26 +322,26 @@ export function SwapBox({
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="mb-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-xs text-emerald-400 flex items-center gap-2"
+            className="mb-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-5 py-4 text-sm text-emerald-400 flex items-center gap-3"
           >
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-            </span>
-            Bet placed successfully!
+            <CheckCircle className="h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-semibold">Bet placed successfully!</p>
+              <p className="text-xs text-emerald-400/60 mt-0.5">Your position is now live.</p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Primary CTA — Iridescent Gradient ── */}
+      {/* ── Primary CTA — Large, dominant, glowing ── */}
       <motion.button
         onClick={handleSwap}
         disabled={!isConnected || !isAmountValid || loading}
-        className="relative w-full overflow-hidden rounded-lg py-3.5 text-sm font-bold text-white tracking-wide transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 shadow-[0_8px_30px_-8px_rgba(16,185,129,0.35)] group"
-        whileTap={!loading ? { scale: 0.97 } : undefined}
+        className="relative w-full overflow-hidden rounded-xl py-4 text-base font-bold text-black tracking-wide transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 shadow-[0_8px_40px_-8px_rgba(0,230,138,0.35)] hover:shadow-[0_12px_50px_-8px_rgba(0,230,138,0.5)] group"
+        whileHover={(!loading && isConnected && isAmountValid) ? { scale: 1.02 } : undefined}
+        whileTap={(!loading && isConnected && isAmountValid) ? { scale: 0.97 } : undefined}
         style={{
-          background:
-            "linear-gradient(135deg, #059669 0%, #10b981 30%, #14b8a6 60%, #8b5cf6 100%)",
+          background: "linear-gradient(135deg, #00E68A 0%, #00FFAA 50%, #10b981 100%)",
           backgroundSize: "200% 100%",
         }}
         onMouseEnter={(e) => {
@@ -305,31 +352,54 @@ export function SwapBox({
         }}
       >
         {/* Shimmer sweep */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[1200ms] ease-in-out" />
         {/* Inner highlight */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-lg" />
-        <span className="relative z-10">
-          {loading
-            ? step === "approving"
-              ? "Approving USDC..."
-              : "Placing Bet..."
-            : !isConnected
-              ? "Connect Wallet"
-              : !isAmountValid
-                ? "Enter Stake Amount"
-                : "Place Bet"}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-xl" />
+
+        <span className="relative z-10 flex items-center justify-center gap-2">
+          {loading ? (
+            <>
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <span>
+                {step === "approving" ? "Approving USDC..." : "Placing Bet..."}
+              </span>
+            </>
+          ) : !isConnected ? (
+            <>
+              <Wallet className="h-4 w-4" />
+              <span>Connect Wallet to Bet</span>
+            </>
+          ) : !isAmountValid ? (
+            <>
+              <ArrowRight className="h-4 w-4" />
+              <span>Enter Stake Amount</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4" />
+              <span>Place Bet — {predictedTokens} Tokens</span>
+            </>
+          )}
         </span>
       </motion.button>
 
       {/* ── Trust Footer ── */}
-      <div className="mt-4 flex items-center justify-center gap-4 text-[10px] text-zinc-600">
-        <span className="flex items-center gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/50" />
-          Liquidity: Active
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/50" />
-          Contract: Verified
+      <div className="mt-5 flex items-center justify-between text-[10px]">
+        <div className="flex items-center gap-3 text-zinc-600">
+          <span className="flex items-center gap-1">
+            <CheckCircle className="h-3 w-3 text-emerald-500/50" />
+            Contract Verified
+          </span>
+          <span className="flex items-center gap-1">
+            <CheckCircle className="h-3 w-3 text-emerald-500/50" />
+            Audited
+          </span>
+        </div>
+        <span className="text-zinc-700 font-mono tabular-nums">
+          {enteredAmount > 0 ? `${enteredAmount.toFixed(2)} USDC` : "—"}
         </span>
       </div>
     </div>
