@@ -20,6 +20,7 @@ export interface MatchSummary {
   isFinished: boolean;
   status: "LIV" | "FT" | "NS";
   startTime: string;
+  feeTier?: number;
 }
 
 export interface MatchDetail {

@@ -1,16 +1,9 @@
 /**
- * GoalSwap Oracle — RedisCache
+ * GoalSwap Oracle — RedisCache (with In-Memory Fallback)
  *
  * Caches match states for WebSocket replay (new clients get instant state).
  * Stores oracle metrics for health monitoring.
- *
- * Key format:
- *  - `goalswap:match:{matchId}:state`    → JSON MatchState
- *  - `goalswap:match:{matchId}:metadata` → JSON MatchMetadata
- *  - `goalswap:match:{matchId}:lastUpdate` → ISO timestamp
- *  - `goalswap:oracle:txCount:today`     → number
- *  - `goalswap:oracle:errors:today`      → number
- *  - `goalswap:matches:active`           → Set of active matchIds
+ * Falls back to in-memory storage if Redis is not available locally.
  */
 
 import Redis from "ioredis";
@@ -26,20 +19,27 @@ interface CacheEntry<T> {
 export class RedisCache {
   private client: Redis;
   private prefix: string;
+  private fallbackMode = false;
+  
+  // In-Memory Fallback Stores
+  private memCache = new Map<string, string>();
+  private memSets = new Map<string, Set<string>>();
 
   constructor() {
     this.prefix = config.redis.prefix;
     this.client = new Redis(config.redis.url, {
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: 1,
       retryStrategy(times) {
-        if (times > 5) return null; // give up
-        return Math.min(times * 200, 2000);
+        if (times > 2) return null; // give up quickly for fallback
+        return Math.min(times * 200, 1000);
       },
-      enableOfflineQueue: true,
+      enableOfflineQueue: false,
     });
 
     this.client.on("error", (err) => {
-      console.warn("[RedisCache] Connection error:", err.message);
+      if (!this.fallbackMode) {
+        console.warn("[RedisCache] Connection error:", err.message);
+      }
     });
 
     this.client.on("connect", () => {
@@ -48,12 +48,76 @@ export class RedisCache {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  //  Memory Fallback Helpers
+  // ═══════════════════════════════════════════════════════════════
+
+  private async _setex(key: string, ttl: number, val: string): Promise<void> {
+    if (this.fallbackMode) {
+      this.memCache.set(key, val);
+      return;
+    }
+    try {
+      await this.client.setex(key, ttl, val);
+    } catch {
+      this.fallbackMode = true;
+      this.memCache.set(key, val);
+    }
+  }
+
+  private async _get(key: string): Promise<string | null> {
+    if (this.fallbackMode) return this.memCache.get(key) || null;
+    try {
+      return await this.client.get(key);
+    } catch {
+      this.fallbackMode = true;
+      return this.memCache.get(key) || null;
+    }
+  }
+
+  private async _sadd(key: string, val: string): Promise<void> {
+    if (this.fallbackMode) {
+      if (!this.memSets.has(key)) this.memSets.set(key, new Set());
+      this.memSets.get(key)!.add(val);
+      return;
+    }
+    try {
+      await this.client.sadd(key, val);
+    } catch {
+      this.fallbackMode = true;
+      if (!this.memSets.has(key)) this.memSets.set(key, new Set());
+      this.memSets.get(key)!.add(val);
+    }
+  }
+
+  private async _smembers(key: string): Promise<string[]> {
+    if (this.fallbackMode) {
+      return Array.from(this.memSets.get(key) || []);
+    }
+    try {
+      return await this.client.smembers(key);
+    } catch {
+      this.fallbackMode = true;
+      return Array.from(this.memSets.get(key) || []);
+    }
+  }
+
+  private async _srem(key: string, val: string): Promise<void> {
+    if (this.fallbackMode) {
+      this.memSets.get(key)?.delete(val);
+      return;
+    }
+    try {
+      await this.client.srem(key, val);
+    } catch {
+      this.fallbackMode = true;
+      this.memSets.get(key)?.delete(val);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //  Match State
   // ═══════════════════════════════════════════════════════════════
 
-  /**
-   * Store match state in cache.
-   */
   async setMatchState(matchId: string, state: MatchState): Promise<void> {
     const entry: CacheEntry<MatchState> = {
       data: state,
@@ -61,30 +125,24 @@ export class RedisCache {
       version: 1,
     };
 
-    await this.client.setex(
+    await this._setex(
       this._key(`match:${matchId}:state`),
       config.redis.matchStateTtl,
       JSON.stringify(entry),
     );
 
-    // Track active match
-    await this.client.sadd(this._key("matches:active"), matchId);
-    await this.client.setex(
+    await this._sadd(this._key("matches:active"), matchId);
+    await this._setex(
       this._key(`match:${matchId}:lastUpdate`),
       config.redis.matchStateTtl,
       new Date().toISOString(),
     );
   }
 
-  /**
-   * Get cached match state.
-   * Returns null if not found or expired.
-   */
   async getMatchState(matchId: string): Promise<MatchState | null> {
+    const raw = await this._get(this._key(`match:${matchId}:state`));
+    if (!raw) return null;
     try {
-      const raw = await this.client.get(this._key(`match:${matchId}:state`));
-      if (!raw) return null;
-
       const entry: CacheEntry<MatchState> = JSON.parse(raw);
       return entry.data;
     } catch {
@@ -92,11 +150,8 @@ export class RedisCache {
     }
   }
 
-  /**
-   * Get all cached match states for active matches.
-   */
   async getAllMatchStates(): Promise<Map<string, MatchState>> {
-    const activeMatches = await this.client.smembers(this._key("matches:active"));
+    const activeMatches = await this._smembers(this._key("matches:active"));
     const states = new Map<string, MatchState>();
 
     for (const matchId of activeMatches) {
@@ -104,52 +159,38 @@ export class RedisCache {
       if (state) {
         states.set(matchId, state);
       } else {
-        // Clean up stale entry
-        await this.client.srem(this._key("matches:active"), matchId);
+        await this._srem(this._key("matches:active"), matchId);
       }
     }
-
     return states;
   }
 
-  /**
-   * Get list of active match IDs.
-   */
   async getActiveMatchIds(): Promise<string[]> {
-    return this.client.smembers(this._key("matches:active"));
+    return this._smembers(this._key("matches:active"));
   }
 
   // ═══════════════════════════════════════════════════════════════
   //  Match Metadata
   // ═══════════════════════════════════════════════════════════════
 
-  /**
-   * Store match metadata (team names, logos, etc.)
-   */
   async setMatchMetadata(matchId: string, metadata: MatchMetadata): Promise<void> {
-    await this.client.setex(
+    await this._setex(
       this._key(`match:${matchId}:metadata`),
-      config.redis.matchStateTtl * 7, // 7 days for metadata
+      config.redis.matchStateTtl * 7,
       JSON.stringify(metadata),
     );
   }
 
-  /**
-   * Get cached match metadata.
-   */
   async getMatchMetadata(matchId: string): Promise<MatchMetadata | null> {
+    const raw = await this._get(this._key(`match:${matchId}:metadata`));
+    if (!raw) return null;
     try {
-      const raw = await this.client.get(this._key(`match:${matchId}:metadata`));
-      if (!raw) return null;
       return JSON.parse(raw);
     } catch {
       return null;
     }
   }
 
-  /**
-   * Get all match metadata for active matches.
-   */
   async getAllMatchMetadata(): Promise<MatchMetadata[]> {
     const activeMatches = await this.getActiveMatchIds();
     const metadata: MatchMetadata[] = [];
@@ -158,7 +199,6 @@ export class RedisCache {
       const meta = await this.getMatchMetadata(matchId);
       if (meta) metadata.push(meta);
     }
-
     return metadata;
   }
 
@@ -166,63 +206,57 @@ export class RedisCache {
   //  Oracle Metrics
   // ═══════════════════════════════════════════════════════════════
 
-  /**
-   * Increment today's transaction count.
-   */
   async incrementTxCount(): Promise<number> {
-    const key = this._key(`oracle:txCount:${this._today()}`);
-    const count = await this.client.incr(key);
-    await this.client.expire(key, 86_400); // 24h
-    return count;
+    if (this.fallbackMode) return 0;
+    try {
+      const key = this._key(`oracle:txCount:${this._today()}`);
+      const count = await this.client.incr(key);
+      await this.client.expire(key, 86_400);
+      return count;
+    } catch { return 0; }
   }
 
-  /**
-   * Get today's transaction count.
-   */
   async getTxCount(): Promise<number> {
-    const val = await this.client.get(this._key(`oracle:txCount:${this._today()}`));
-    return val ? parseInt(val, 10) : 0;
+    if (this.fallbackMode) return 0;
+    try {
+      const val = await this.client.get(this._key(`oracle:txCount:${this._today()}`));
+      return val ? parseInt(val, 10) : 0;
+    } catch { return 0; }
   }
 
-  /**
-   * Increment today's error count.
-   */
   async incrementErrorCount(): Promise<number> {
-    const key = this._key(`oracle:errors:${this._today()}`);
-    const count = await this.client.incr(key);
-    await this.client.expire(key, 86_400);
-    return count;
+    if (this.fallbackMode) return 0;
+    try {
+      const key = this._key(`oracle:errors:${this._today()}`);
+      const count = await this.client.incr(key);
+      await this.client.expire(key, 86_400);
+      return count;
+    } catch { return 0; }
   }
 
-  /**
-   * Get today's error count.
-   */
   async getErrorCount(): Promise<number> {
-    const val = await this.client.get(this._key(`oracle:errors:${this._today()}`));
-    return val ? parseInt(val, 10) : 0;
+    if (this.fallbackMode) return 0;
+    try {
+      const val = await this.client.get(this._key(`oracle:errors:${this._today()}`));
+      return val ? parseInt(val, 10) : 0;
+    } catch { return 0; }
   }
 
   // ═══════════════════════════════════════════════════════════════
   //  Health & Stats
   // ═══════════════════════════════════════════════════════════════
 
-  /**
-   * Check if Redis is connected and responsive.
-   */
   async ping(): Promise<boolean> {
+    if (this.fallbackMode) return true;
     try {
-      const result = await this.client.ping();
-      return result === "PONG";
+      return (await this.client.ping()) === "PONG";
     } catch {
       return false;
     }
   }
 
-  /**
-   * Get cache statistics for health monitoring.
-   */
   async getStats(): Promise<Record<string, number>> {
-    const activeCount = await this.client.scard(this._key("matches:active"));
+    const activeCount = (await this._smembers(this._key("matches:active"))).length;
     const txCount = await this.getTxCount();
     const errorCount = await this.getErrorCount();
 
@@ -233,30 +267,34 @@ export class RedisCache {
     };
   }
 
-  /**
-   * Wait for Redis to be ready (connected + operational).
-   */
   async waitForReady(): Promise<void> {
     if (this.client.status === "ready") return;
-    if (this.client.status === "connect" || this.client.status === "connecting") {
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error("Redis connection timeout")), 5000);
-        this.client.once("ready", () => { clearTimeout(timeout); resolve(); });
+    
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        console.warn("\n[RedisCache] ⚠️  Redis connection timeout. Falling back to IN-MEMORY cache.");
+        this.fallbackMode = true;
+        resolve();
+      }, 2000); // 2 second timeout to fallback quickly
+
+      this.client.once("ready", () => { 
+        clearTimeout(timeout); 
+        resolve(); 
       });
-      return;
-    }
-    // If status is something else (e.g. close, end, wait), try connecting
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Redis connection timeout")), 5000);
-      this.client.once("ready", () => { clearTimeout(timeout); resolve(); });
+      
+      this.client.once("error", () => {
+        clearTimeout(timeout);
+        this.fallbackMode = true;
+        console.warn("\n[RedisCache] ⚠️  Redis connection failed. Falling back to IN-MEMORY cache.");
+        resolve();
+      });
     });
   }
 
-  /**
-   * Clean shut down Redis connection.
-   */
   async shutdown(): Promise<void> {
-    await this.client.quit();
+    if (!this.fallbackMode) {
+      await this.client.quit();
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -269,17 +307,18 @@ export class RedisCache {
       updatedAt: new Date().toISOString(),
       version: 1,
     };
-    await this.client.set(
+    await this._setex(
       this._key(`token:${token.symbol}`),
+      0,
       JSON.stringify(entry),
     );
-    await this.client.sadd(this._key("tokens:active"), token.symbol);
+    await this._sadd(this._key("tokens:active"), token.symbol);
   }
 
   async getFanToken(symbol: string): Promise<FanTokenInfo | null> {
+    const raw = await this._get(this._key(`token:${symbol}`));
+    if (!raw) return null;
     try {
-      const raw = await this.client.get(this._key(`token:${symbol}`));
-      if (!raw) return null;
       const entry: CacheEntry<FanTokenInfo> = JSON.parse(raw);
       return entry.data;
     } catch {
@@ -288,7 +327,7 @@ export class RedisCache {
   }
 
   async getAllFanTokens(): Promise<FanTokenInfo[]> {
-    const symbols = await this.client.smembers(this._key("tokens:active"));
+    const symbols = await this._smembers(this._key("tokens:active"));
     if (symbols.length === 0) return [];
     const tokens: FanTokenInfo[] = [];
     for (const sym of symbols) {

@@ -144,16 +144,7 @@ export function SwapBox({
                 <span className="text-zinc-500">Fee reason</span>
                 <span className="text-zinc-400">{feeReason}</span>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-zinc-500">Est. probability</span>
-                <span className="text-zinc-400">
-                  {selectedOutcome === "home"
-                    ? "—"
-                    : selectedOutcome === "away"
-                      ? "—"
-                      : "—"}
-                </span>
-              </div>
+              {/* Est. probability removed since AMM reserves are not fetched here */}
             </div>
           </motion.div>
         )}
@@ -182,7 +173,7 @@ export function SwapBox({
             exit={{ opacity: 0, scale: 0.95 }}
             className="mb-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs text-emerald-400"
           >
-            ✅ Swap submitted!
+            Swap submitted!
           </motion.div>
         )}
       </AnimatePresence>

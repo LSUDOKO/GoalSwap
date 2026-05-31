@@ -27,7 +27,7 @@ Real sports API → Oracle Service → WebSocket broadcast → Frontend
 1. **Connect** your wallet via RainbowKit
 2. **Browse** live matches with real-time scores and fee tiers
 3. **Trade** outcome tokens (win/lose/draw) or team fan tokens
-4. **Collect** trophies, earn XP, and climb the leaderboard
+4. **Collect** soulbound trophies, earn XP, and climb the leaderboard
 
 ---
 
@@ -38,15 +38,21 @@ goalswap-arena/
 ├── app/                      # Next.js 16 App Router pages
 │   ├── /                     # Landing page (hero, features, CTA)
 │   ├── /matches              # Match grid with live/upcoming/finished
-│   ├── /match/[matchId]      # Match detail — SwapBox, FeeTicker, Timeline
+│   ├── /match/[matchId]      # Match detail — SwapBox, FeeTicker, Timeline, AI Insights
 │   ├── /tokens               # Fan tokens with bonding curve + buy/sell
 │   ├── /brackets             # Bracket prediction NFTs
 │   ├── /leaderboard          # Trader rankings (volume, PnL, trophies, streak)
 │   ├── /profile              # Wallet portfolio, trophy cabinet
 │   └── /games                # Multi-sport game browser
 │
-├── components/               # React components (SwapBox, FeeTicker, Header, Footer, etc.)
-│   └── ui/                   # shadcn/ui primitives (button, header, sliders, etc.)
+├── components/               # React components
+│   ├── SwapBox.tsx           # Core trading interface
+│   ├── MatchCard.tsx         # Match grid card
+│   ├── LiveFeeTicker.tsx     # Dynamic fee display
+│   ├── EventTimeline.tsx     # Match events timeline
+│   ├── AiInsightCard.tsx     # AI-powered trading insights ⭐
+│   ├── NewsFeed.tsx          # Activity feed
+│   └── ui/                   # shadcn/ui primitives
 │
 ├── contracts/                # Solidity smart contracts (Foundry)
 │   ├── src/
@@ -84,6 +90,9 @@ goalswap-arena/
 │   └── abis/                 # Contract ABIs (all 7 contracts)
 │
 ├── ai-agent/                 # X bot (Python — Tweepy + OpenAI)
+│   ├── bot.py                # Auto-posting + reply handler
+│   └── requirements.txt
+│
 ├── lib/                      # Frontend utilities
 │   ├── oracle.ts             # REST API client (matches, tokens, leaderboard, portfolio)
 │   ├── contracts.ts          # Contract interaction helpers (read/write)
@@ -115,22 +124,31 @@ goalswap-arena/
 | **BracketNFT** | [`0xE3fD44B189F481E0FBE887b0F0dE938d4107D9F3`](https://www.oklink.com/xlayer-test/address/0xE3fD44B189F481E0FBE887b0F0dE938d4107D9F3) | Transferable bracket prediction NFTs |
 | **MockUSDC** | `0x2ECDAcB97eE840da3391E63038D7E086129A13d5` | Test USDC for settlement |
 | **PoolManager** | `0x0Bf02B5765dBbC15b5C1b56412Fc73e70F782564` | Uniswap V4 PoolManager |
-| **Deployer** | `0x4FD969A5E6c9f3fff2cA37B473E30b39106F0F99` | Oracle signer wallet |
+| **Deployer (Oracle)** | `0x4FD969A5E6c9f3fff2cA37B473E30b39106F0F99` | Oracle signer wallet |
 
 All contracts verified on [X Layer Testnet Explorer](https://www.oklink.com/xlayer-test).
 
-### Key Smart Contract Details
+### Fee Tiers (Dynamic)
 
-**FanToken** — Bonding curve token (`FanToken.sol`):
-- Linear pricing: `price = BASE_PRICE + (totalMinted × SLOPE)`
-- `BASE_PRICE` = 0.001 USDC, `SLOPE` = 0.0001 USDC per token
-- `MAX_SUPPLY` = 1 billion
-- Auto-creates Uniswap V4 pool when 50% of max supply is minted
+| Condition | Fee |
+|-----------|-----|
+| Kickoff (minute ≤ 15) | 0.3% |
+| Normal play | 1.0% |
+| Within 5 min of goal | 3.0% |
+| Red card OR minute ≥ 90 | 5.0% |
+| Penalty shootout | 10.0% |
+| Match finished | 0.0% (settlement) |
+| Fan token panic-sell | 10.0% |
 
-**WorldCupArenaHook** — Uniswap V4 dynamic fee hook:
-- Fee increases on goals, red cards, high volatility
-- 5 fee tiers: Low (0.3%), Normal (1.0%), High (3.0%), Very High (5.0%), Peak (10.0%)
-- Fan token sell fees spike when the team is winning (anti-panic mechanism)
+### Trophy Tiers (Soulbound)
+
+| Tier | Name | Condition |
+|------|------|-----------|
+| 1 | Lightning Reflex | Trade within 60s of a goal |
+| 2 | Bronze Nostradamus | 1 correct upset prediction |
+| 3 | Silver Prophet | 5 correct in-play trades |
+| 4 | Golden Ball Trader | Predicted tournament winner |
+| 5 | Arena Legend | Top 100 all-time leaderboard |
 
 ---
 
@@ -151,7 +169,60 @@ All contracts verified on [X Layer Testnet Explorer](https://www.oklink.com/xlay
 | **Telegram** | `node-telegram-bot-api` |
 | **X Bot** | Python — Tweepy + OpenAI |
 | **Indexer** | The Graph (subgraph) |
-| **Infrastructure** | Vercel (frontend), Oracle (bare metal / EC2), Upstash (Redis) |
+| **Infrastructure** | Vercel (frontend), EC2 (oracle), Upstash (Redis) |
+
+---
+
+## Key Features
+
+### 🧠 AI-Powered Trading Insights
+Contextual match analysis on every match detail page — generated from live match state, fee tier, score differential, and historical data:
+- **Fee-based insights:** Low/normal/high fee recommendations with actionable trading suggestions
+- **Comeback probability:** Historical comeback rates for trailing teams based on goal deficit and time remaining
+- **Late-game analysis:** ~38% of matches see a goal in the final 15 minutes
+- **Stoppage time alerts:** High volatility warnings during extra time
+- **Red card impact:** Statistical analysis of advantage shifts
+- **Multi-goal thrillers:** Momentum compounding in high-scoring matches
+- **Pre-match opportunities:** Lock-in odds before kickoff
+- **Trophy opportunities:** Lightning Reflex SBT alerts when goals are scored
+- Designed to be replaced by GPT-4o-mini API route in production
+
+### Match Outcome Trading
+Buy prediction tokens for match outcomes — win, lose, or draw. Trade positions in real time as odds shift.
+
+### Dynamic Fee Engine
+Uniswap V4 hooks monitor live match events. Goals, red cards, and high volatility trigger automatic fee changes — protecting LPs while keeping markets liquid.
+
+### Fan Token Bonds
+Launch and trade team-branded fan tokens through automated bonding curves. Natural price discovery without manual market making. Price grows with every buy.
+
+### Soulbound Trophies
+Earn non-transferable on-chain achievements for trading volume, prediction streaks, and bracket accuracy. Free to mint — protocol pays gas.
+
+### Bracket Predictions
+Mint transferable NFT brackets with your World Cup predictions. Trade bracket futures in a secondary market.
+
+### Real-Time Data
+Oracle nodes pull match data from API-Football, TheSportsDB, and Sportmonks at sub-minute intervals. WebSockets push score changes instantly.
+
+### 🤖 Telegram Bot — @GoalSwapArenaBot
+- `/live` — Live matches with scores and fee tiers
+- `/match {team}` — Search match by team
+- `/alert {matchId} {condition}` — Custom goal/price/fee alerts
+- `/portfolio {wallet}` — Portfolio summary
+- `/leaderboard` — Top 10 global traders
+- Auto-push goal notifications with inline trading buttons
+- Multi-language support (EN, ES, PT, FR, AR, DE, JA, KO, ZH, RU, IT, NL)
+
+### 🐦 X Bot — @GoalSwapAgent
+- Auto-posts every 15 minutes during live matches
+- Reply handler for @mentions with GPT-4 mini generated responses
+- Hashtag strategy: `#WorldCup2026 #GoalSwap #XLayer #UniswapV4`
+
+### 📊 The Graph Subgraph
+- Indexes all events from WorldCupArenaHook, OutcomeTokenFactory, FanToken, GoalSwapTrophies, BracketNFT
+- Entities: Match, Pool, Swap, User, Trophy, Bracket
+- Enables leaderboard queries and historical analytics
 
 ---
 
@@ -177,6 +248,9 @@ cd oracle-service && npm install && cd ..
 
 # Install Telegram bot dependencies
 cd telegram-bot && npm install && cd ..
+
+# Install X bot dependencies
+cd ai-agent && pip install -r requirements.txt && cd ..
 ```
 
 ### 2. Environment Variables
@@ -252,28 +326,6 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## Key Features
-
-### Match Outcome Trading
-Buy prediction tokens for match outcomes — win, lose, or draw. Trade positions in real time as odds shift.
-
-### Dynamic Fee Engine
-Uniswap V4 hooks monitor live match events. Goals, red cards, and high volatility trigger automatic fee changes — protecting LPs while keeping markets liquid.
-
-### Fan Token Bonds
-Launch and trade team-branded fan tokens through automated bonding curves. Natural price discovery without manual market making. Price grows with every buy.
-
-### Soulbound Trophies
-Earn non-transferable on-chain achievements for trading volume, prediction streaks, and bracket accuracy. Free to mint — protocol pays gas.
-
-### Bracket Predictions
-Mint transferable NFT brackets with your World Cup predictions. Trade bracket futures in a secondary market.
-
-### Real-Time Data
-Oracle nodes pull match data from API-Football, TheSportsDB, and Sportmonks at sub-minute intervals. WebSockets push score changes instantly.
-
----
-
 ## Critical Design Decisions
 
 | Decision | Rationale |
@@ -286,6 +338,42 @@ Oracle nodes pull match data from API-Football, TheSportsDB, and Sportmonks at s
 | **Oracle signatures on-chain** | Prevents replay attacks |
 | **Testnet deployment first** | Focus on demonstrability; mainnet is bonus |
 | **Multi-oracle (1-of-1 now)** | Upgrade path to 2-of-3 multisig post-launch |
+
+---
+
+## Phase 5 — AI + Polish (Complete)
+
+### ✅ AI Insight Card
+New `components/AiInsightCard.tsx` component on every match detail page:
+- 9 insight types covering all match states (pre-match, live, finished)
+- Contextual: fee-based, score-based, time-based, event-based insights
+- Historical data references (comeback rates, late-game goal percentages)
+- Expandable UI with "Show more" toggle
+- Animated refresh, live indicator, severity badges (Signal/Caution/Risk)
+- Not financial advice disclaimer
+
+### ✅ X Bot — @GoalSwapAgent
+- Auto-posting every 15 minutes during live matches
+- Reply handler with GPT-4 mini for @mention questions
+- Hashtag strategy: `#WorldCup2026 #GoalSwap #XLayer #UniswapV4`
+
+### ✅ The Graph Subgraph
+- Full schema with Swap, Match, User entities
+- Event handlers for all contract events
+- Ready for deployment to The Graph Studio
+
+### ✅ Demo Video Script
+- 90-second storyboard with 7 scenes
+- Covers: live match → dynamic fee → one-click trade → fan tokens → bracket NFTs → AI insights → trophies
+- Production notes for screen recording, audio, and post-production
+- Required tags: `@XLayerOfficial @Uniswap @flapdotsh`
+
+### ✅ Telegram Bot — @GoalSwapArenaBot
+- 10+ commands: `/live`, `/match`, `/alert`, `/portfolio`, `/leaderboard`, `/brackets`, `/trophies`, `/referral`, `/settings`, `/alerts`
+- Goal/fee/settlement auto-push notifications
+- Interactive conversation flows
+- Group chat support with anti-spam
+- Multi-language support (11 languages)
 
 ---
 
@@ -332,12 +420,17 @@ npm run deploy
 
 ## Submission Checklist
 
-- [x] Hook deployed on X Layer with real oracle integration
-- [x] Oracle node running with API-Football + fallback
-- [x] WebSocket broadcasting real match updates
-- [x] Frontend live on Vercel with real match data
-- [x] Smart contracts verified on X Layer Testnet
-- [x] GitHub repo public with comprehensive README
+- [x] **WorldCupArenaHook.sol** deployed on X Layer with real oracle integration
+- [x] **Oracle node** running with API-Football + TheSportsDB fallback
+- [x] **WebSocket server** broadcasting real match updates
+- [x] **Next.js frontend** live with real match data
+- [x] **@GoalSwapArenaBot** fully implemented (all commands + push alerts)
+- [x] **@GoalSwapAgent** X bot scripted (auto-post + reply handler)
+- [x] **AI Insight Card** integrated into match detail page
+- [x] **The Graph subgraph** schema + mappings ready
+- [x] **Demo video script** prepared (90 seconds, 7 scenes)
+- [x] **Smart contracts verified** on X Layer Testnet Explorer
+- [x] **GitHub repo** public with comprehensive README
 
 ---
 

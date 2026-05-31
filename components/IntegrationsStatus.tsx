@@ -29,16 +29,16 @@ const TYPE_CONFIG: Record<
   string,
   { label: string; icon: string; color: string }
 > = {
-  backend: { label: "Backend", icon: "⚙️", color: "text-blue-400" },
-  bot: { label: "Bot", icon: "🤖", color: "text-purple-400" },
+  backend: { label: "Backend", icon: "BE", color: "text-blue-400" },
+  bot: { label: "Bot", icon: "B", color: "text-purple-400" },
   "smart-contract": {
     label: "Smart Contract",
-    icon: "📜",
+    icon: "SC",
     color: "text-emerald-400",
   },
   infrastructure: {
     label: "Infrastructure",
-    icon: "☁️",
+    icon: "I",
     color: "text-yellow-400",
   },
 };
@@ -53,7 +53,7 @@ const STATUS_CONFIG: Record<
     bg: "bg-emerald-500/10",
   },
   degraded: {
-    icon: "◐",
+    icon: "●",
     color: "text-yellow-400",
     bg: "bg-yellow-500/10",
   },
@@ -114,8 +114,8 @@ export function IntegrationsStatus() {
     return (
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-6">
         <div className="flex items-center gap-3 text-sm text-zinc-500">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
-            ⚠️
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 text-red-400 text-sm font-bold">
+            !
           </span>
           <span>System status unavailable — oracle may be offline</span>
         </div>
@@ -135,8 +135,8 @@ export function IntegrationsStatus() {
       <div className="mb-5 flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-sm">
-              🔌
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-sm font-bold text-emerald-400">
+              GS
             </span>
             <h3 className="text-sm font-semibold text-zinc-100">
               System Integrations

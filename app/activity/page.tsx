@@ -12,7 +12,8 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { NewsFeed } from "@/components/NewsFeed";
 import { IntegrationsStatus } from "@/components/IntegrationsStatus";
-import { formatTimeAgo, sportEmoji, sportLabel } from "@/lib/format";
+import { formatTimeAgo, sportLabel, SPORT_CONFIG } from "@/lib/format";
+import { Activity, Radio } from "lucide-react";
 
 interface ActivityItem {
   id: string;
@@ -70,11 +71,11 @@ export default function ActivityPage() {
   }
 
   const sportTabs = [
-    { key: "all", label: "All Sports", icon: "🏆", count: data?.count ?? 0 },
+    { key: "all", label: "All Sports", icon: "all", count: data?.count ?? 0 },
     ...Object.entries(sportCounts).map(([key, count]) => ({
       key,
       label: sportLabel(key),
-      icon: sportEmoji(key),
+      icon: key,
       count,
     })),
   ];
@@ -82,23 +83,31 @@ export default function ActivityPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header */}
-      <div className="mb-8">
-        <motion.h1
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-2xl font-bold text-zinc-100 sm:text-3xl"
-        >
-          Activity
-        </motion.h1>
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex items-center gap-3 mb-2">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-800/50"
+          >
+            <Activity className="h-5 w-5 text-emerald-400" />
+          </motion.div>
+          <h1 className="text-2xl font-bold text-zinc-100 sm:text-3xl">Activity</h1>
+        </div>
         <motion.p
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="mt-1 text-sm text-zinc-500"
+          className="text-sm text-zinc-500 ml-12"
         >
           Live feed of match events, goal alerts, and system updates
         </motion.p>
-      </div>
+      </motion.div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main feed */}
@@ -115,7 +124,7 @@ export default function ActivityPage() {
                     : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 border border-transparent"
                 }`}
               >
-                <span>{tab.icon}</span>
+                <span className="h-2 w-2 rounded-full bg-zinc-600" />
                 <span>{tab.label}</span>
                 <span className="ml-0.5 text-[10px] text-zinc-500">({tab.count})</span>
               </button>
@@ -127,30 +136,39 @@ export default function ActivityPage() {
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
-                  className="animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/50 p-4"
+                  className="animate-pulse rounded-xl border border-zinc-800 bg-zinc-900/50 p-4"
                 >
-                  <div className="h-4 w-3/4 rounded bg-zinc-800" />
-                  <div className="mt-2 h-3 w-1/2 rounded bg-zinc-800" />
+                  <div className="flex items-center gap-4">
+                    <div className="h-8 w-8 rounded-lg bg-zinc-800" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-3/4 rounded bg-zinc-800" />
+                      <div className="h-3 w-1/2 rounded bg-zinc-800" />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="mb-4 text-4xl">📭</div>
-              <h3 className="text-sm font-medium text-zinc-400">
-                No activity found
-              </h3>
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center justify-center py-20 text-center"
+            >
+              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900/60">
+                <Radio className="h-8 w-8 text-zinc-600" />
+              </div>
+              <h3 className="text-sm font-medium text-zinc-400">No activity found</h3>
               <p className="mt-2 text-xs text-zinc-600">
                 {sportFilter !== "all"
                   ? "No events for this sport yet."
                   : "No match activity recorded yet."}
               </p>
-            </div>
+            </motion.div>
           ) : (
             <div className="space-y-1">
               <AnimatePresence mode="popLayout">
                 {filtered.map((item, i) => {
-                  const emoji = sportEmoji(item.sport);
+                  const sportCfg = SPORT_CONFIG[item.sport] ?? SPORT_CONFIG.football;
                   return (
                     <Link key={`${item.id}-${i}`} href={`/match/${item.id}`}>
                       <motion.div
@@ -158,12 +176,12 @@ export default function ActivityPage() {
                         initial={{ opacity: 0, x: -16 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.02, duration: 0.2 }}
-                        className="group flex items-center gap-4 rounded-lg border border-zinc-800 bg-zinc-900/30 px-4 py-3 transition-all hover:border-zinc-700 hover:bg-zinc-900/60"
+                        className="group flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/30 px-4 py-3 transition-all hover:border-zinc-700 hover:bg-zinc-900/60"
                       >
-                        <span className="text-xl">{emoji}</span>
+                        <span className={`shrink-0 w-8 h-8 rounded-lg ${sportCfg.color.split(' ')[0]} flex items-center justify-center`}>●</span>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-medium text-zinc-100 truncate">
                               {item.homeTeam}
                             </span>
@@ -223,5 +241,3 @@ export default function ActivityPage() {
     </div>
   );
 }
-
-

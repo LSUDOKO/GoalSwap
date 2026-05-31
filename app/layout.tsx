@@ -5,7 +5,8 @@ import "./globals.css";
 import "@rainbow-me/rainbowkit/styles.css";
 import { Providers } from "./providers";
 import { Header } from "@/components/ui/header-2";
-import { Footer } from "@/components/Footer";
+import { ConditionalFooter } from "@/components/ConditionalFooter";
+import { PageTransition } from "@/components/PageTransition";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -58,11 +59,13 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${josefinSans.variable} ${metamorphous.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100 font-[family-name:var(--font-josefin-sans)]">
+      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100 font-[family-name:var(--font-josefin-sans)]" suppressHydrationWarning>
         <Providers>
           <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
+          <main className="flex-1">
+            <PageTransition>{children}</PageTransition>
+          </main>
+          <ConditionalFooter />
         </Providers>
       </body>
     </html>

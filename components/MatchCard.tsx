@@ -1,15 +1,18 @@
 /**
  * GoalSwap Arena — MatchCard
  *
- * Displays a match summary with live score, team flags, fee tier,
- * and status indicator.
+ * Premium match card with spacious 2-column layout. Displays live score,
+ * team identities, fee tier, and status with glassmorphism design.
  */
 
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import type { MatchSummary } from "@/lib/oracle";
+import { CountryFlag } from "@/components/ui/CountryFlag";
+import { getTeamCountryCode } from "@/lib/countries";
 import { SPORT_CONFIG } from "@/lib/format";
 
 interface MatchCardProps {
@@ -18,17 +21,14 @@ interface MatchCardProps {
 
 function getFeeColor(feeTier?: number): string {
   if (!feeTier) return "text-zinc-400";
-  if (feeTier >= 10000) return "text-purple-400"; // 10%+ penalty shootout
-  if (feeTier >= 5000) return "text-red-400";    // 5% red card/late
-  if (feeTier >= 3000) return "text-orange-400";  // 3% post-goal
-  if (feeTier >= 1000) return "text-yellow-400";  // 1% normal
-  return "text-zinc-400";                          // 0.3% kickoff
+  if (feeTier >= 10000) return "text-purple-400";
+  if (feeTier >= 5000) return "text-red-400";
+  if (feeTier >= 3000) return "text-orange-400";
+  if (feeTier >= 1000) return "text-yellow-400";
+  return "text-zinc-400";
 }
 
-function getStatusBadge(status: string): {
-  label: string;
-  className: string;
-} {
+function getStatusBadge(status: string): { label: string; className: string } {
   switch (status) {
     case "LIV":
       return {
@@ -50,93 +50,162 @@ function getStatusBadge(status: string): {
 }
 
 export function MatchCard({ match }: MatchCardProps) {
+  const [homeLogoFailed, setHomeLogoFailed] = useState(false);
+  const [awayLogoFailed, setAwayLogoFailed] = useState(false);
   const statusBadge = getStatusBadge(match.status);
   const isLive = match.status === "LIV";
+  const isFinished = match.status === "FT";
+  const sportCfg = SPORT_CONFIG[match.sport] ?? SPORT_CONFIG.football;
 
   return (
     <Link href={`/match/${match.matchId}`}>
       <motion.div
-        className="group relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 transition-all hover:border-zinc-700 hover:bg-zinc-900/80"
-        whileHover={{ y: -2 }}
-        transition={{ duration: 0.2 }}
+        className="group relative overflow-hidden rounded-2xl border border-zinc-800/60 bg-gradient-to-b from-zinc-900/90 to-zinc-950/90 p-6 transition-all duration-300 hover:border-zinc-700/80 hover:shadow-[0_0_30px_rgba(16,185,129,0.08)] hover:shadow-emerald-500/5"
+        whileHover={{ y: -3, transition: { duration: 0.25, ease: "easeOut" } }}
       >
+        {/* Subtle gradient overlay on hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/[0.03] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
+
+        {/* Top decorative line */}
+        <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-zinc-700/50 to-transparent" />
+
         {/* Live indicator */}
         {isLive && (
-          <div className="absolute right-3 top-3 flex items-center gap-1.5">
-            <span className="relative flex h-2 w-2">
+          <div className="absolute right-4 top-4 flex items-center gap-1.5">
+            <span className="relative flex h-2.5 w-2.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
             </span>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400">
               LIVE {match.minute}&apos;
             </span>
           </div>
         )}
 
-        {/* Teams */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold uppercase text-zinc-400">
-              {match.homeTeam.slice(0, 2)}
+        {/* Teams row — premium layout with prominent badges and scores */}
+        <div className="flex items-center justify-between gap-4 mb-5">
+          {/* Home Team */}
+          <div className="flex flex-col items-center gap-2 min-w-0 flex-1">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 ring-1 ring-zinc-700/50 transition-all duration-300 group-hover:ring-emerald-500/30 group-hover:shadow-[0_0_20px_rgba(16,185,129,0.1)] overflow-hidden">
+              {(() => {
+                const cc = getTeamCountryCode(match.homeTeam);
+                if (match.homeLogo && !homeLogoFailed) {
+                  return (
+                    <img
+                      src={match.homeLogo}
+                      alt={match.homeTeam}
+                      className="h-full w-full object-contain p-1"
+                      onError={() => setHomeLogoFailed(true)}
+                    />
+                  );
+                }
+                return cc ? (
+                  <CountryFlag countryCode={cc} size={3} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-sm font-bold uppercase text-zinc-300">
+                    {match.homeTeam.slice(0, 2)}
+                  </span>
+                );
+              })()}
             </div>
-            <span className="truncate text-sm font-medium text-zinc-100">
+            <span className="truncate text-sm font-semibold text-zinc-200 max-w-[120px] text-center">
               {match.homeTeam}
             </span>
           </div>
 
           {/* Score */}
-          <div className="flex items-center gap-2 px-3">
-            <span
-              className={`text-2xl font-bold tabular-nums ${
-                isLive ? "text-white" : "text-zinc-300"
-              }`}
-            >
-              {match.homeScore}
-            </span>
-            <span className="text-sm text-zinc-600">:</span>
-            <span
-              className={`text-2xl font-bold tabular-nums ${
-                isLive ? "text-white" : "text-zinc-300"
-              }`}
-            >
-              {match.awayScore}
-            </span>
+          <div className="flex flex-col items-center gap-1 shrink-0">
+            <div className="flex items-center gap-3">
+              <span
+                className={`text-4xl font-bold tabular-nums tracking-tight ${
+                  isLive
+                    ? "text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]"
+                    : isFinished
+                      ? "text-zinc-200"
+                      : "text-zinc-300"
+                }`}
+              >
+                {match.homeScore}
+              </span>
+              <span className="text-lg font-medium text-zinc-600">:</span>
+              <span
+                className={`text-4xl font-bold tabular-nums tracking-tight ${
+                  isLive
+                    ? "text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]"
+                    : isFinished
+                      ? "text-zinc-200"
+                      : "text-zinc-300"
+                }`}
+              >
+                {match.awayScore}
+              </span>
+            </div>
+            {!isLive && !isFinished && (
+              <span className="text-[10px] uppercase tracking-[0.15em] text-zinc-600 font-medium">
+                {new Date(match.startTime).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="truncate text-sm font-medium text-zinc-100">
+          {/* Away Team */}
+          <div className="flex flex-col items-center gap-2 min-w-0 flex-1">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 ring-1 ring-zinc-700/50 transition-all duration-300 group-hover:ring-emerald-500/30 group-hover:shadow-[0_0_20px_rgba(16,185,129,0.1)] overflow-hidden">
+              {(() => {
+                const cc = getTeamCountryCode(match.awayTeam);
+                if (match.awayLogo && !awayLogoFailed) {
+                  return (
+                    <img
+                      src={match.awayLogo}
+                      alt={match.awayTeam}
+                      className="h-full w-full object-contain p-1"
+                      onError={() => setAwayLogoFailed(true)}
+                    />
+                  );
+                }
+                return cc ? (
+                  <CountryFlag countryCode={cc} size={3} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-sm font-bold uppercase text-zinc-300">
+                    {match.awayTeam.slice(0, 2)}
+                  </span>
+                );
+              })()}
+            </div>
+            <span className="truncate text-sm font-semibold text-zinc-200 max-w-[120px] text-center">
               {match.awayTeam}
             </span>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold uppercase text-zinc-400">
-              {match.awayTeam.slice(0, 2)}
-            </div>
           </div>
         </div>
 
         {/* Bottom row: sport badge + status + fee */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pt-3 border-t border-zinc-800/60">
           <div className="flex items-center gap-2">
             {/* Sport badge */}
-            {(() => {
-              const sc = SPORT_CONFIG[match.sport] ?? SPORT_CONFIG.football;
-              return (
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${sc.color}`}
-                >
-                  <span>{sc.icon}</span>
-                  <span>{sc.label}</span>
-                </span>
-              );
-            })()}
             <span
-              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusBadge.className}`}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium ${sportCfg.color}`}
+            >
+              <span className="h-3 w-3 rounded-full bg-current" />
+              <span>{sportCfg.label}</span>
+            </span>
+            <span
+              className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider ${statusBadge.className}`}
             >
               {statusBadge.label}
             </span>
           </div>
 
-          <span className={`text-xs font-medium ${getFeeColor(undefined)}`}>
-            Fee: {match.status === "LIV" ? "Dynamic" : "—"}
+          {/* Fee tier */}
+          <span className={`text-xs font-medium ${getFeeColor(match.feeTier)}`}>
+            {match.feeTier
+              ? `${(match.feeTier / 100).toFixed(1)}% Fee`
+              : match.status === "LIV"
+                ? "Dynamic Fee"
+                : "—"}
           </span>
         </div>
       </motion.div>

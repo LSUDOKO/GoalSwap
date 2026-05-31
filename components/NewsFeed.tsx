@@ -27,7 +27,8 @@ interface ActivityData {
   count: number;
 }
 
-import { formatTimeAgo, SPORT_CONFIG, sportEmoji } from "@/lib/format";
+import { Activity, Radio } from "lucide-react";
+import { formatTimeAgo, SPORT_CONFIG } from "@/lib/format";
 
 const ACTIVITY_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
@@ -88,8 +89,8 @@ export function NewsFeed() {
     return (
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-6">
         <div className="flex items-center gap-3 text-sm text-zinc-500">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-sm">
-            📋
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800">
+            <Activity className="h-4 w-4 text-zinc-500" />
           </span>
           <span>No recent activity. Check back when matches are live.</span>
         </div>
@@ -106,8 +107,8 @@ export function NewsFeed() {
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-sm">
-            📰
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
+            <Radio className="h-4 w-4 text-blue-400" />
           </span>
           <h3 className="text-sm font-semibold text-zinc-100">
             Live Activity Feed
@@ -123,7 +124,7 @@ export function NewsFeed() {
         <AnimatePresence mode="popLayout">
           {data.activities.slice(0, 15).map((item, i) => {
             const isNew = newItems.has(item.id);
-            const emoji = sportEmoji(item.sport);
+            const sportConfig = SPORT_CONFIG[item.sport] ?? SPORT_CONFIG.football;
             const colorClass = SPORT_CONFIG[item.sport]?.color ?? SPORT_CONFIG.football.color;
 
             return (
@@ -139,7 +140,7 @@ export function NewsFeed() {
                 }`}
               >
                 {/* Sport icon */}
-                <span className="shrink-0 text-base">{emoji}</span>
+                <span className={`shrink-0 w-4 h-4 rounded ${sportConfig.color.replace('text-', 'bg-').split(' ')[0].replace('border-', '').split(' ')[0] || 'bg-zinc-700'}`} />
 
                 {/* Match info */}
                 <div className="min-w-0 flex-1">

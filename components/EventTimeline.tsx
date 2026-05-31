@@ -27,17 +27,17 @@ interface EventTimelineProps {
 function getEventIcon(type: TimelineEvent["type"]): string {
   switch (type) {
     case "goal":
-      return "⚽";
+      return "G";
     case "fee_change":
-      return "💹";
+      return "$";
     case "settlement":
-      return "🏆";
+      return "T";
     case "red_card":
-      return "🟥";
+      return "R";
     case "penalty_shootout":
-      return "⚡";
+      return "P";
     case "match_start":
-      return "🎬";
+      return "▶";
   }
 }
 

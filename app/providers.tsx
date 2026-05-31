@@ -13,7 +13,7 @@ import { http } from "wagmi";
 import { xLayerTestnet, defaultChain } from "@/lib/contracts";
 
 // ── RainbowKit + Wagmi Config ──
-const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ?? "";
+const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "d9662c1615f3a097262077e3831b64cb";
 
 const config = getDefaultConfig({
   appName: "GoalSwap Arena",

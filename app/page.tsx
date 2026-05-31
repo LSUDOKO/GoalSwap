@@ -125,8 +125,13 @@ export default function HomePage() {
         <GradientBars numBars={15} gradientFrom="rgb(52, 211, 153)" gradientTo="transparent" animationDuration={2.5} />
         <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/50 via-zinc-950/20 to-zinc-950/50" />
 
+        {/* Animated floating orbs */}
+        <div className="absolute top-1/4 left-1/4 h-64 w-64 rounded-full bg-emerald-500/5 blur-[100px] animate-pulse" style={{ animationDuration: '4s' }} />
+        <div className="absolute bottom-1/3 right-1/4 h-48 w-48 rounded-full bg-emerald-400/3 blur-[80px] animate-pulse" style={{ animationDuration: '6s' }} />
+
         <div className="relative w-full mx-auto max-w-7xl px-4 py-32 sm:px-6 sm:py-40 lg:py-48">
           <motion.div initial="hidden" animate="visible" className="mx-auto max-w-4xl text-center">
+
             <motion.div
               variants={fadeUp} custom={0}
               className="mb-6 inline-flex items-center rounded-full border border-zinc-700 bg-zinc-900/80 px-4 py-1.5 text-xs text-zinc-400"
@@ -142,6 +147,11 @@ export default function HomePage() {
               <span className="bg-gradient-to-r from-emerald-400 via-emerald-300 to-emerald-200 bg-clip-text text-transparent font-[family-name:var(--font-metamorphous)]">
                 Sport
               </span>
+              ,{" "}
+              <span className="bg-gradient-to-r from-emerald-400 via-emerald-300 to-emerald-200 bg-clip-text text-transparent font-[family-name:var(--font-metamorphous)]">
+                Win Any
+              </span>{" "}
+              Match
             </motion.h1>
 
             <motion.p variants={fadeUp} custom={2}
@@ -156,7 +166,7 @@ export default function HomePage() {
             >
               <Link
                 href="/matches"
-                className="inline-flex h-12 items-center gap-2 rounded-lg bg-emerald-500 px-8 text-sm font-semibold text-black transition-all hover:bg-emerald-400 hover:scale-[1.02]"
+                className="inline-flex h-12 items-center gap-2 rounded-lg bg-emerald-500 px-8 text-sm font-semibold text-black transition-all hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98]"
               >
                 <Sparkles className="h-4 w-4" />
                 Browse Matches
@@ -164,6 +174,28 @@ export default function HomePage() {
               {!isConnected && (
                 <ConnectButton label="Connect Wallet" accountStatus="avatar" showBalance={false} />
               )}
+            </motion.div>
+
+            {/* Stats row */}
+            <motion.div
+              variants={fadeUp} custom={4}
+              className="mt-16 flex items-center justify-center gap-8 sm:gap-12"
+            >
+              {[
+                { value: '$2.4M', label: 'Total Volume' },
+                { value: '12K+', label: 'Active Traders' },
+                { value: '48', label: 'Live Markets' },
+                { value: '8', label: 'Sports' },
+              ].map((stat) => (
+                <div key={stat.label} className="text-center">
+                  <div className="text-lg sm:text-xl font-bold text-zinc-100 tabular-nums">
+                    {stat.value}
+                  </div>
+                  <div className="text-[10px] text-zinc-600 uppercase tracking-wider mt-0.5">
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
             </motion.div>
           </motion.div>
         </div>
