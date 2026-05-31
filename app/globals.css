@@ -92,6 +92,23 @@ body {
   transition: background-color 0.5s ease, color 0.5s ease;
 }
 
+/* Floating orb drift animation */
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(30px, -20px) scale(1.05);
+  }
+  50% {
+    transform: translate(-10px, 20px) scale(0.95);
+  }
+  75% {
+    transform: translate(20px, 10px) scale(1.02);
+  }
+}
+
 /* Glass card effect */
 .glass-card {
   background: rgba(24, 24, 27, 0.8);

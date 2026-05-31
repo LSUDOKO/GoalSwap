@@ -3,6 +3,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ export function Header() {
   const moreRef = React.useRef<HTMLDivElement>(null);
   const scrolled = useScroll(10);
   const pathname = usePathname();
+  const isLanding = pathname === "/";
 
   React.useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -51,29 +53,35 @@ export function Header() {
   const isActive = (href: string) => pathname.startsWith(href);
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-50 mx-auto w-full border-b border-transparent md:rounded-md md:border md:transition-all md:ease-out",
-        {
-          "bg-zinc-950/95 supports-[backdrop-filter]:bg-zinc-950/50 border-zinc-800 backdrop-blur-lg md:top-4 md:max-w-6xl md:shadow": scrolled && !open,
-          "bg-zinc-950/90": open,
-        },
-      )}
-    >
-      <nav
+      <header
         className={cn(
-          "flex h-14 w-full items-center justify-between px-4 md:h-12 md:transition-all md:ease-out",
-          { "md:px-2": scrolled },
+          "sticky top-0 z-50 mx-auto w-full border-b transition-all md:ease-out",
+          isLanding
+            ? "border-transparent"
+            : "bg-zinc-950 border-transparent",
+          isLanding && scrolled && !open && "bg-zinc-950/95 supports-[backdrop-filter]:bg-zinc-950/50 border-zinc-800 backdrop-blur-lg md:rounded-md md:border md:top-4 md:max-w-6xl md:shadow",
+          isLanding && open && "bg-zinc-950/90",
         )}
       >
+        <nav
+          className={cn(
+            "flex h-14 w-full items-center justify-between px-4 md:h-12 md:transition-all md:ease-out",
+            { "md:px-2": scrolled && isLanding },
+          )}
+        >
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group shrink-0">
           <motion.div
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-xs font-bold text-black"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
           >
-            G
+            <Image
+              src="/logoin.png"
+              alt="GoalSwap"
+              width={16}
+              height={16}
+              className="h-4 w-4 object-contain"
+            />
           </motion.div>
           <span className="bg-gradient-to-r from-emerald-400 via-emerald-300 to-emerald-200 bg-clip-text text-transparent font-[family-name:var(--font-metamorphous)] text-sm">
             GoalSwap
