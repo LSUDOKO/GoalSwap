@@ -293,20 +293,27 @@ process.on("SIGTERM", shutdown);
 async function seedDemoData(): Promise<void> {
   if (stateValidator.getAllMatchIds().length > 0) return;
 
+  // World Cup 2026 nations (48-team tournament — 12 groups of 4)
+  // Simulated pre-tournament friendlies and qualifiers since WC starts June 8
   const DEMO_FIXTURES = [
-    { id: 855736, home: "Qatar", away: "Ecuador", homeScore: 0, awayScore: 2, homeId: 1032, awayId: 1065 },
-    { id: 855735, home: "England", away: "Iran", homeScore: 6, awayScore: 2, homeId: 1027, awayId: 1144 },
-    { id: 855734, home: "Senegal", away: "Netherlands", homeScore: 0, awayScore: 2, homeId: 1055, awayId: 1031 },
-    { id: 874646, home: "USA", away: "Wales", homeScore: 1, awayScore: 1, homeId: 1067, awayId: 1059 },
-    { id: 874649, home: "Argentina", away: "Saudi Arabia", homeScore: 1, awayScore: 2, homeId: 1029, awayId: 1085 },
-    { id: 874650, home: "Denmark", away: "Tunisia", homeScore: 0, awayScore: 0, homeId: 1040, awayId: 1060 },
-    { id: 874653, home: "Mexico", away: "Poland", homeScore: 0, awayScore: 0, homeId: 1056, awayId: 1049 },
-    { id: 874654, home: "France", away: "Australia", homeScore: 4, awayScore: 1, homeId: 1025, awayId: 1043 },
-    { id: 874655, home: "Morocco", away: "Croatia", homeScore: 0, awayScore: 0, homeId: 1054, awayId: 1033 },
-    { id: 874656, home: "Germany", away: "Japan", homeScore: 1, awayScore: 2, homeId: 1051, awayId: 1082 },
+    { id: 855736, home: "Brazil", away: "Argentina", homeScore: 2, awayScore: 1, homeId: 1032, awayId: 1065 },
+    { id: 855735, home: "France", away: "England", homeScore: 3, awayScore: 1, homeId: 1027, awayId: 1144 },
+    { id: 855734, home: "Germany", away: "Spain", homeScore: 2, awayScore: 2, homeId: 1055, awayId: 1031 },
+    { id: 874646, home: "USA", away: "Mexico", homeScore: 1, awayScore: 0, homeId: 1067, awayId: 1059 },
+    { id: 874649, home: "Argentina", away: "Uruguay", homeScore: 3, awayScore: 0, homeId: 1029, awayId: 1085 },
+    { id: 874650, home: "Portugal", away: "Netherlands", homeScore: 1, awayScore: 1, homeId: 1040, awayId: 1060 },
+    { id: 874653, home: "Italy", away: "Croatia", homeScore: 2, awayScore: 1, homeId: 1056, awayId: 1049 },
+    { id: 874654, home: "Belgium", away: "Morocco", homeScore: 1, awayScore: 2, homeId: 1025, awayId: 1043 },
+    { id: 874655, home: "Japan", away: "South Korea", homeScore: 1, awayScore: 0, homeId: 1054, awayId: 1033 },
+    { id: 874656, home: "Senegal", away: "Cameroon", homeScore: 2, awayScore: 2, homeId: 1051, awayId: 1082 },
+    { id: 874657, home: "Colombia", away: "Ecuador", homeScore: 1, awayScore: 0, homeId: 1090, awayId: 1091 },
+    { id: 874658, home: "Nigeria", away: "Ghana", homeScore: 2, awayScore: 0, homeId: 1092, awayId: 1093 },
+    { id: 874659, home: "Switzerland", away: "Denmark", homeScore: 0, awayScore: 0, homeId: 1094, awayId: 1095 },
+    { id: 874660, home: "Australia", away: "Iran", homeScore: 1, awayScore: 1, homeId: 1096, awayId: 1097 },
+    { id: 874661, home: "Poland", away: "Sweden", homeScore: 2, awayScore: 1, homeId: 1098, awayId: 1099 },
   ];
 
-  console.log(`[Oracle] Seeding ${DEMO_FIXTURES.length} demo matches (WC 2022)...`);
+  console.log(`[Oracle] Seeding ${DEMO_FIXTURES.length} demo matches (WC 2026 friendlies)...`);
 
   for (const fixture of DEMO_FIXTURES) {
     const matchId = keccak256(
@@ -340,7 +347,8 @@ async function seedDemoData(): Promise<void> {
       awayLogo: "",
       leagueId: 1,
       fixtureId: fixture.id,
-      startTime: "2022-11-20T16:00:00+00:00",
+      // Friendlies played 1-3 days ago
+      startTime: new Date(Date.now() - (fixture.id % 3 + 1) * 86400000).toISOString(),
     };
 
     await redisCache.setMatchMetadata(matchId, meta);
@@ -359,7 +367,7 @@ async function seedDemoData(): Promise<void> {
     });
   }
 
-  console.log(`[Oracle] ✅ Seeded ${DEMO_FIXTURES.length} demo matches from WC 2022`);
+  console.log(`[Oracle] ✅ Seeded ${DEMO_FIXTURES.length} demo matches (WC 2026 friendlies)`);
 
   // ── Seed Basketball Demo Data ──
   const BASKETBALL_FIXTURES = [

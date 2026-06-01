@@ -25,6 +25,9 @@ export const xLayerTestnet = defineChain({
   blockExplorers: {
     default: { name: "X Layer Testnet Explorer", url: "https://www.oklink.com/xlayer-test" },
   },
+  contracts: {
+    multicall3: { address: "0xca11bde05977b3631167028862be2a173976ca11", blockCreated: 0 },
+  },
 });
 
 export const defaultChain = xLayerTestnet;
@@ -36,7 +39,7 @@ export const contracts = {
   fanTokenLauncher: process.env.NEXT_PUBLIC_FAN_TOKEN_LAUNCHER as `0x${string}` | undefined,
   trophies: (process.env.NEXT_PUBLIC_TROPHIES_ADDRESS || "0x6788921d3d3956C10554f1aEc8d9d4B279c9A735") as `0x${string}`,
   bracketNft: (process.env.NEXT_PUBLIC_BRACKET_NFT_ADDRESS || "0xE3fD44B189F481E0FBE887b0F0dE938d4107D9F3") as `0x${string}`,
-  poolManager: "0x0Bf02B5765dBbC15b5C1b56412Fc73e70F782564" as `0x${string}`,
+  poolManager: (process.env.NEXT_PUBLIC_POOL_MANAGER_ADDRESS || "0x2155241692D720B41eF7c8e8Af753DE6E9Fc4b2c") as `0x${string}`,
 };
 
 export const hookAbi = [
@@ -281,4 +284,70 @@ export const fanTokenAbi = [
   },
 ] as const;
 
+export const poolManagerAbi = [
+  {
+    type: "function",
+    name: "simulateSwap",
+    inputs: [
+      { name: "tokenIn", type: "address", internalType: "address" },
+      { name: "tokenOut", type: "address", internalType: "address" },
+      { name: "amountIn", type: "uint256", internalType: "uint256" },
+      { name: "amountOut", type: "uint256", internalType: "uint256" },
+      { name: "fee", type: "uint24", internalType: "uint24" },
+    ],
+    outputs: [{ name: "swapId", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "getUserSwapCount",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getUserSwapIds",
+    inputs: [
+      { name: "user", type: "address" },
+      { name: "offset", type: "uint256" },
+      { name: "limit", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bytes32[]" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "swapRecords",
+    inputs: [{ name: "swapId", type: "bytes32" }],
+    outputs: [
+      { name: "user", type: "address" },
+      { name: "tokenIn", type: "address" },
+      { name: "tokenOut", type: "address" },
+      { name: "amountIn", type: "uint256" },
+      { name: "amountOut", type: "uint256" },
+      { name: "fee", type: "uint24" },
+      { name: "timestamp", type: "uint256" },
+    ],
+    stateMutability: "view",
+  },
+] as const;
+
 export const USDC_DECIMALS = 6;
+
+/** Fee tiers matching WorldCupArenaHook constants */
+export const FEE_TIERS = {
+  SETTLEMENT: 0,
+  KICKOFF: 3000,        // 0.3%
+  NORMAL: 10000,         // 1.0%
+  POST_GOAL: 30000,      // 3.0%
+  HIGH_VOLATILITY: 50000, // 5.0%
+  PENALTY_SHOOTOUT: 100000, // 10.0%
+} as const;
+
+/** Format fee as human-readable percentage */
+export function formatFeePct(fee: number): string {
+  return `${(fee / 10000).toFixed(2)}%`;
+}
+
+

@@ -38,6 +38,92 @@ contract MockPoolManager {
     ///         so this contract's address must match what hooks expect.
     ///         In tests/broadcasts, pass this contract's address as POOL_MANAGER.
 
+    // ── Demo Swap Record ──
+    /// @notice Record of a simulated swap for demo purposes
+    struct SwapRecord {
+        address user;
+        address tokenIn;
+        address tokenOut;
+        uint256 amountIn;
+        uint256 amountOut;
+        uint24 fee;
+        uint256 timestamp;
+    }
+
+    /// @notice Mapping from swap ID to swap record
+    mapping(bytes32 => SwapRecord) public swapRecords;
+
+    /// @notice All swap records for a user
+    mapping(address => bytes32[]) public userSwaps;
+
+    /// @notice Emitted when a demo swap is executed
+    event SwapExecuted(
+        bytes32 indexed swapId,
+        address indexed user,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOut,
+        uint24 fee
+    );
+
+    /// @notice Execute a simulated swap for demo purposes
+    /// @dev Transfers tokenIn from user, stores the swap record, emits an event
+    function simulateSwap(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOut,
+        uint24 fee
+    ) external returns (bytes32 swapId) {
+        require(tokenIn != address(0), "Invalid tokenIn");
+        require(amountIn > 0, "Amount must be > 0");
+
+        // Transfer tokens from user to this contract
+        (bool success, bytes memory data) = tokenIn.call(
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)",
+                msg.sender, address(this), amountIn
+            )
+        );
+        require(success && (data.length == 0 || abi.decode(data, (bool))), "TransferFrom failed");
+
+        // Generate deterministic swap ID
+        swapId = keccak256(abi.encodePacked(msg.sender, tokenIn, tokenOut, amountIn, block.timestamp));
+
+        // Record the swap
+        swapRecords[swapId] = SwapRecord({
+            user: msg.sender,
+            tokenIn: tokenIn,
+            tokenOut: tokenOut,
+            amountIn: amountIn,
+            amountOut: amountOut,
+            fee: fee,
+            timestamp: block.timestamp
+        });
+        userSwaps[msg.sender].push(swapId);
+
+        emit SwapExecuted(swapId, msg.sender, tokenIn, tokenOut, amountIn, amountOut, fee);
+    }
+
+    /// @notice Get swap count for a user
+    function getUserSwapCount(address user) external view returns (uint256) {
+        return userSwaps[user].length;
+    }
+
+    /// @notice Get swap IDs for a user
+    function getUserSwapIds(address user, uint256 offset, uint256 limit) external view returns (bytes32[] memory) {
+        uint256 total = userSwaps[user].length;
+        if (offset >= total) return new bytes32[](0);
+        uint256 end = offset + limit > total ? total : offset + limit;
+        uint256 count = end - offset;
+        bytes32[] memory result = new bytes32[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = userSwaps[user][offset + i];
+        }
+        return result;
+    }
+
     // ── Stubs — all revert with clear messages ──
 
     function unlock(bytes calldata) external pure returns (bytes memory) {
@@ -53,7 +139,7 @@ contract MockPoolManager {
     }
 
     function swap(PoolKey memory, SwapParams memory, bytes calldata) external pure returns (BalanceDelta) {
-        revert("MockPoolManager: swap not implemented");
+        revert("MockPoolManager: V4 swap not implemented - use simulateSwap() for demo");
     }
 
     function donate(PoolKey memory, uint256, uint256, bytes calldata) external pure returns (BalanceDelta) {

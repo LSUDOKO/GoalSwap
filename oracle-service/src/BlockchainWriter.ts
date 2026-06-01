@@ -10,7 +10,7 @@
  *  - Full logging of every tx
  */
 
-import { createWalletClient, http, publicActions, type Hash, type Account, keccak256, encodePacked, toBytes, concat, stringToHex } from "viem";
+import { createWalletClient, http, publicActions, type Hash, type Account, keccak256, encodePacked } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { config } from "./config.js";
 import type { MatchState } from "./types.js";
@@ -252,16 +252,12 @@ export class BlockchainWriter {
             [job.matchId as `0x${string}`, job.newState.homeScore, job.newState.awayScore, job.newState.minute, job.newState.redCards, job.newState.isFinished, timestamp],
           )
         );
-        // Compute EIP-191 ethSignedHash: keccak256("\x19Ethereum Signed Message:\n32" + messageHash)
-        // This matches the hook's toEthSignedMessageHash(messageHash)
-        const ethSignedHash = keccak256(
-          concat([
-            stringToHex("\x19Ethereum Signed Message:\n32"),
-            messageHash,
-          ])
-        );
-        const oracleAccount = this.account! as { sign: (params: { hash: Hash }) => Promise<Hash> };
-        const signature = await oracleAccount.sign({ hash: ethSignedHash });
+        // Use walletClient.signMessage for canonical EIP-191 signing
+        // This handles: hashMessage(hash) -> account.sign(ethSignedHash) -> signature
+        const signature = await this.walletClient!.signMessage({
+          account: this.account!,
+          message: { raw: messageHash },
+        });
 
         const args = [
           job.matchId as `0x${string}`,

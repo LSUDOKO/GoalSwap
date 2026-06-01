@@ -7,7 +7,7 @@ import "dotenv/config";
 export const config = {
   // ── Chain ──
   chain: {
-    rpcUrl: process.env.X_LAYER_RPC ?? "https://rpc.xlayer.tech",
+    rpcUrl: process.env.X_LAYER_RPC ?? "https://testrpc.xlayer.tech",
     chainId: Number(process.env.CHAIN_ID ?? 1952),
   },
 

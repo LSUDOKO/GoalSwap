@@ -432,18 +432,35 @@ export class MultiSportFetcher {
 
     const sports = Object.keys(SPORT_INFO) as Sport[];
 
-    // Fetch all sports in parallel — football uses Sportmonks first
+    // Fetch all sports in parallel — football tries Sportmonks + api-sports.io together
     const results = await Promise.allSettled(
       sports.map((sport) => {
-        // Football: use Sportmonks as primary, api-sports.io as fallback
         if (sport === "football") {
-          return this._fetchSportmonksFootball().catch((err) => {
-            console.warn(`[MultiSportFetcher][Sportmonks] Failed:`, err.message);
-            console.warn(`[MultiSportFetcher][Football] Falling back to api-sports.io...`);
-            return this._fetchSport(sport).catch((err2) => {
-              console.warn(`[MultiSportFetcher][Football] api-sports.io also failed:`, err2.message);
-              return { matches: [], metadata: new Map() };
-            });
+          // Football: try Sportmonks AND api-sports.io IN PARALLEL
+          // Sportmonks may return 0 inplay, api-sports.io has broader coverage
+          return Promise.allSettled([
+            this._fetchSportmonksFootball().catch(() => ({ matches: [], metadata: new Map() })),
+            this._fetchSport("football").catch(() => ({ matches: [], metadata: new Map() })),
+          ]).then(([sportmonksResult, apiSportsResult]) => {
+            const combinedMatches: MatchUpdate[] = [];
+            const combinedMetadata = new Map<string, MatchMetadata>();
+            const seenMatchIds = new Set<string>();
+
+            for (const result of [sportmonksResult, apiSportsResult]) {
+              if (result.status === "fulfilled") {
+                for (const m of result.value.matches) {
+                  if (!seenMatchIds.has(m.matchId)) {
+                    seenMatchIds.add(m.matchId);
+                    combinedMatches.push(m);
+                  }
+                }
+                for (const [key, meta] of result.value.metadata) {
+                  combinedMetadata.set(key, meta);
+                }
+              }
+            }
+
+            return { matches: combinedMatches, metadata: combinedMetadata };
           });
         }
         // All other sports use generic api-sports.io
@@ -884,10 +901,43 @@ export class MultiSportFetcher {
         return await this._fetchGolf(sport);
       }
 
-      // Generic endpoint: /games with date parameter
-      const { data } = await client.get<ApiSportsResponse<ApiSportsGame>>("/games", {
-        params: { date: todayStr, timezone: "UTC" },
-      });
+      // Football uses /fixtures instead of /games for api-sports.io v3
+      const endpoint = sport === "football" ? "/fixtures" : "/games";
+      // Football with `live=all` returns currently live fixtures
+      const params: Record<string, string> = { timezone: "UTC" };
+      if (sport === "football") {
+        // Try live fixtures first
+        try {
+          const liveResult = await client.get<ApiSportsResponse<ApiSportsGame>>(endpoint, {
+            params: { live: "all", timezone: "UTC" },
+          });
+          this._trackApiCall(sport);
+          const liveGames = liveResult?.data?.response ?? [];
+          if (liveGames.length > 0) {
+            for (const game of liveGames) {
+              const update = this._processApiSportsGame(game, sport);
+              if (update) {
+                matches.push(update.update);
+                const metaKey = `${sport}:${game.id}`;
+                if (!this.metadataCache.has(metaKey)) {
+                  this.metadataCache.set(metaKey, update.meta);
+                }
+                metadata.set(metaKey, this.metadataCache.get(metaKey)!);
+              }
+            }
+            return { matches, metadata };
+          }
+        } catch {
+          // Live endpoint may not be available on all tiers
+        }
+
+        // Fall back to date-based search with broader range
+        params.date = todayStr;
+      } else {
+        params.date = todayStr;
+      }
+
+      const { data } = await client.get<ApiSportsResponse<ApiSportsGame>>(endpoint, { params });
       this._trackApiCall(sport);
 
       const games = data?.response ?? [];
@@ -1385,7 +1435,62 @@ export class MultiSportFetcher {
     return keccak256(stringToHex(`${sport}-${fixtureId}-${homeId}-${awayId}`));
   }
 
+  /**
+   * Convert an api-sports.io game object to our internal MatchUpdate + Metadata.
+   * Used by the football live:all endpoint path.
+   */
+  private _processApiSportsGame(
+    game: ApiSportsGame,
+    sport: Sport,
+  ): { update: MatchUpdate; meta: MatchMetadata } | null {
+    const fixtureId = game.id;
+    const metaKey = `${sport}:${fixtureId}`;
+    const homeId = game.teams?.home?.id ?? fixtureId;
+    const awayId = game.teams?.away?.id ?? fixtureId;
+    const matchId = this._generateMatchId(sport, fixtureId, homeId, awayId);
+
+    const status = game.status?.short ?? "NS";
+    const isLive = this._isLiveStatus(sport, status);
+    const isFinished = this._isFinishedStatus(sport, status);
+    if (!isLive && !isFinished) return null;
+
+    const homeScore = this._extractScore(game.scores?.home, sport);
+    const awayScore = this._extractScore(game.scores?.away, sport);
+    if (Number.isNaN(homeScore) || Number.isNaN(awayScore)) return null;
+
+    const minute = this._extractMinute(game, sport, isFinished);
+
+    const update: MatchUpdate = {
+      matchId,
+      sport,
+      homeScore: Math.min(homeScore, 255),
+      awayScore: Math.min(awayScore, 255),
+      minute: Math.min(minute, 999),
+      redCards: 0,
+      penaltyShootout: false,
+      isFinished,
+      timestamp: Math.floor(Date.now() / 1000),
+      status: isFinished ? "FT" : "LIV",
+    };
+
+    const meta: MatchMetadata = {
+      matchId,
+      sport,
+      matchKey: this._toMatchKey(game),
+      homeTeam: game.teams?.home?.name ?? "Home",
+      awayTeam: game.teams?.away?.name ?? "Away",
+      homeLogo: game.teams?.home?.logo ?? "",
+      awayLogo: game.teams?.away?.logo ?? "",
+      leagueId: game.league?.id ?? 0,
+      fixtureId,
+      startTime: game.date ?? config.date.today,
+    };
+
+    return { update, meta };
+  }
+
   private _toMatchKey(game: ApiSportsGame): string {
+
     const home = game.teams?.home?.name?.toLowerCase().slice(0, 3) ?? "hom";
     const away = game.teams?.away?.name?.toLowerCase().slice(0, 3) ?? "awy";
     return `${home}-${away}`;

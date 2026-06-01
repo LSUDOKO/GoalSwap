@@ -1,5 +1,5 @@
 /**
- * GoalSwap Arena — Telegram Bot (@GoalSwapArenaBot)
+ * GoalSwap Arena — Telegram Bot (@Goalswap_bot)
  *
  * Main entry point.
  * Initializes the bot, registers all commands, and starts the
@@ -30,7 +30,7 @@ import { getAllUsers } from "./services/db.js";
 console.log(`
 ╔══════════════════════════════════════════════════════════╗
 ║          GoalSwap Arena — Telegram Bot                   ║
-║          @GoalSwapArenaBot                                ║
+║          @Goalswap_bot                                    ║
 ╚══════════════════════════════════════════════════════════╝
 `);
 
@@ -58,7 +58,9 @@ if (!TELEGRAM_BOT_TOKEN) {
 // ═══════════════════════════════════════════════════════════════
 
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, {
-  polling: USE_POLLING,
+  polling: USE_POLLING
+    ? { interval: 2000, params: { timeout: 10 } }
+    : false,
   onlyFirstMatch: true,
 });
 
@@ -101,8 +103,23 @@ async function setBotCommands(): Promise<void> {
 //  Global Error Handling
 // ═══════════════════════════════════════════════════════════════
 
+// Catch unhandled promise rejections so AggregateError doesn't crash the process
+process.on("unhandledRejection", (reason) => {
+  console.warn("[Bot] Unhandled rejection:", (reason as Error)?.message ?? reason);
+});
+
 bot.on("polling_error", (err) => {
-  console.error("[Bot] Polling error:", err.message);
+  // EFATAL means the polling connection is broken — restart polling
+  if ((err as any)?.code === "EFATAL" || err.message?.includes("EFATAL")) {
+    console.warn("[Bot] Polling EFATAL — restarting polling in 3s...");
+    setTimeout(() => {
+      try {
+        bot.startPolling();
+      } catch { /* already started */ }
+    }, 3000);
+  } else {
+    console.error("[Bot] Polling error:", err.message);
+  }
 });
 
 bot.on("error", (err) => {

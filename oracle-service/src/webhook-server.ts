@@ -34,6 +34,7 @@ import {
   SPORT_INFO,
   ALL_SPORTS,
 } from "./types.js";
+import { keccak256, concat, stringToHex } from "viem";
 import type {
   FanTokenInfo,
   FanTokenTradeRequest,
@@ -817,6 +818,69 @@ export class WebhookServer {
       };
 
       res.json(result);
+    });
+
+    // ── POST /api/trade — Execute a prediction trade ──
+    // Called from useSwap.ts after USDC approval is confirmed.
+    // Simulates the trade execution (on-chain swap goes through the V4 pool manager).
+    this.app.post("/api/trade", async (req: Request, res: Response) => {
+      const { matchId, outcome, amount, user, approveTx } = req.body;
+
+      if (!matchId || !outcome || !amount || !user) {
+        res.status(400).json({ error: "Missing required fields: matchId, outcome, amount, user" });
+        return;
+      }
+
+      try {
+        // Verify the match exists in our state
+        const state = this.stateValidator?.getCachedState(matchId);
+        if (!state) {
+          res.status(404).json({ error: "Match not found" });
+          return;
+        }
+
+        // Generate a deterministic order ID from the match + user + timestamp
+        const orderId = keccak256(
+          concat([
+            stringToHex(`${matchId}:${user}:${Date.now()}`),
+            (approveTx ?? "0x0") as `0x${string}`,
+          ])
+        ).slice(0, 42) as `0x${string}`;
+
+        // In production, this would call the V4 pool manager to execute the swap.
+        // For now, we simulate the trade and return the result.
+        const simulatedTxHash = keccak256(
+          stringToHex(`trade-${orderId}-${Date.now()}`)
+        ).slice(0, 42) as `0x${string}`;
+
+        console.log(`[Webhook] Trade executed: match=${matchId.slice(0, 10)}... user=${user.slice(0, 10)}... outcome=${outcome} amount=${amount} orderId=${orderId.slice(0, 10)}...`);
+
+        // Broadcast via WebSocket
+        this.wsServer?.emitMatchUpdate(matchId, {
+          matchId,
+          homeTeam: "",
+          awayTeam: "",
+          homeScore: 0,
+          awayScore: 0,
+          minute: 0,
+          status: "LIV",
+          feeTier: 0,
+          feeReason: `Trade: ${outcome} ${amount} USDC`,
+        });
+
+        res.json({
+          success: true,
+          orderId,
+          txHash: approveTx ?? simulatedTxHash,
+          matchId,
+          outcome,
+          amount,
+          timestamp: Date.now(),
+        });
+      } catch (err) {
+        console.error("[Webhook] Trade execution failed:", (err as Error).message);
+        res.status(500).json({ error: `Trade failed: ${(err as Error).message}` });
+      }
     });
 
     // ── Catch-all ──
