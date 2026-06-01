@@ -2,9 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAccount } from "wagmi";
+import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { parseUnits, formatUnits } from "viem";
 import { oracleApi, type FanTokenInfo, type FanTokenTradeResult } from "@/lib/oracle";
+import { contracts, erc20Abi, USDC_DECIMALS, defaultChain } from "@/lib/contracts";
 import {
   TrendingUp,
   TrendingDown,
@@ -15,10 +17,10 @@ import {
   Zap,
   BarChart3,
   ArrowLeftRight,
-  ChevronDown,
   Wallet,
-  Sparkles,
-  Coins,
+  CheckCircle,
+  Shield,
+  Loader2,
 } from "lucide-react";
 
 export default function TokensPage() {
@@ -29,6 +31,35 @@ export default function TokensPage() {
   const [tradeAmount, setTradeAmount] = useState("");
   const [tradeResult, setTradeResult] = useState<FanTokenTradeResult | null>(null);
   const [tradeLoading, setTradeLoading] = useState(false);
+  const [tradeStep, setTradeStep] = useState<"idle" | "approving" | "trading" | "success" | "error">("idle");
+  const [tradeError, setTradeError] = useState<string | null>(null);
+
+  const { writeContractAsync } = useWriteContract();
+
+  // Real USDC balance from chain
+  const { data: usdcBalanceRaw, refetch: refetchBalance } = useReadContract({
+    address: contracts.usdc,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    chainId: defaultChain.id,
+  });
+
+  const usdcBalance = usdcBalanceRaw ? Number(formatUnits(usdcBalanceRaw, USDC_DECIMALS)) : 0;
+
+  // Allowance check — is USDC approved for the oracle's trading contract?
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+    address: contracts.usdc,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: address ? [address, contracts.poolManager] : undefined,
+    chainId: defaultChain.id,
+  });
+
+  const needsApproval = (amount: number) => {
+    if (!allowance) return true;
+    return allowance < parseUnits(String(amount), USDC_DECIMALS);
+  };
 
   const loadTokens = useCallback(async () => {
     const all = await oracleApi.getTokens();
@@ -42,21 +73,85 @@ export default function TokensPage() {
     return () => clearInterval(interval);
   }, [loadTokens]);
 
+  // Refresh balance after trade
+  useEffect(() => {
+    if (tradeStep === "success") {
+      refetchBalance();
+      refetchAllowance();
+    }
+  }, [tradeStep, refetchBalance, refetchAllowance]);
+
   const handleTrade = async (action: "buy" | "sell") => {
-    if (!selectedToken || !tradeAmount) return;
+    if (!selectedToken || !tradeAmount || !address) return;
     const amount = parseFloat(tradeAmount);
     if (isNaN(amount) || amount <= 0) return;
 
+    if (action === "buy" && amount > usdcBalance) {
+      setTradeError("Insufficient USDC balance");
+      setTradeStep("error");
+      return;
+    }
+
     setTradeLoading(true);
     setTradeResult(null);
-    const result = await oracleApi.tradeToken(selectedToken.symbol, action, amount, address);
-    if (result) {
-      setTradeResult(result);
-      setSelectedToken((prev) =>
-        prev ? { ...prev, supply: result.newSupply, price: result.price, totalVolume: result.totalVolume } : prev,
-      );
+    setTradeError(null);
+    setTradeStep("approving");
+
+    try {
+      if (action === "buy") {
+        // Step 1: Approve USDC spend if needed
+        if (needsApproval(amount)) {
+          const approveAmount = parseUnits(String(amount * 2), USDC_DECIMALS); // Approve 2x for future trades
+          await writeContractAsync({
+            address: contracts.usdc,
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [contracts.poolManager, approveAmount],
+            chainId: defaultChain.id,
+          });
+        }
+
+        // Step 2: Execute trade via oracle (with wallet confirmation)
+        setTradeStep("trading");
+        const result = await oracleApi.tradeToken(selectedToken.symbol, action, amount, address);
+        if (result) {
+          setTradeResult(result);
+          setTradeStep("success");
+          setSelectedToken((prev) =>
+            prev ? { ...prev, supply: result.newSupply, price: result.price, totalVolume: result.totalVolume } : prev,
+          );
+        } else {
+          setTradeError("Trade failed — oracle returned no result");
+          setTradeStep("error");
+        }
+      } else {
+        // Sell doesn't need USDC approval — sell tokens directly
+        setTradeStep("trading");
+        const result = await oracleApi.tradeToken(selectedToken.symbol, action, amount, address);
+        if (result) {
+          setTradeResult(result);
+          setTradeStep("success");
+          setSelectedToken((prev) =>
+            prev ? { ...prev, supply: result.newSupply, price: result.price, totalVolume: result.totalVolume } : prev,
+          );
+        } else {
+          setTradeError("Trade failed — oracle returned no result");
+          setTradeStep("error");
+        }
+      }
+    } catch (err) {
+      setTradeError((err as Error).message || "Transaction failed");
+      setTradeStep("error");
+    } finally {
+      setTradeLoading(false);
     }
-    setTradeLoading(false);
+  };
+
+  const resetTrade = () => {
+    setTradeStep("idle");
+    setTradeResult(null);
+    setTradeError(null);
+    setTradeAmount("");
   };
 
   const formatPrice = (p: number) => {
@@ -64,6 +159,10 @@ export default function TokensPage() {
     if (p < 1) return `$${p.toFixed(4)}`;
     return `$${p.toFixed(2)}`;
   };
+
+  const tradeCost = selectedToken && tradeAmount
+    ? (parseFloat(tradeAmount) * selectedToken.price).toFixed(2)
+    : "0.00";
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -126,10 +225,9 @@ export default function TokensPage() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
-                onClick={() => { setSelectedToken(token); setTradeAmount(""); setTradeResult(null); }}
+                onClick={() => { setSelectedToken(token); resetTrade(); }}
                 className="group relative rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 text-left transition-all hover:border-zinc-700 hover:bg-zinc-900/70 hover:shadow-[0_0_24px_-8px_rgba(52,211,153,0.06)]"
               >
-                {/* Status indicator */}
                 <div className="absolute top-3 right-3 flex items-center gap-1.5">
                   <span className={`h-1.5 w-1.5 rounded-full ${
                     token.matchStatus === "LIV" ? "bg-emerald-400 animate-ping" :
@@ -140,8 +238,6 @@ export default function TokensPage() {
                      token.matchStatus === "FT" ? "FT" : "Upcoming"}
                   </span>
                 </div>
-
-                {/* Team info */}
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/20 text-xs font-bold text-emerald-400">
                     {token.symbol.slice(0, 2)}
@@ -153,23 +249,15 @@ export default function TokensPage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Price + Change */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="text-lg font-bold text-zinc-100 tabular-nums">{formatPrice(token.price)}</div>
                   <div className={`flex items-center gap-1 text-xs font-medium ${
                     token.priceChange24h >= 0 ? "text-emerald-400" : "text-red-400"
                   }`}>
-                    {token.priceChange24h >= 0 ? (
-                      <TrendingUp className="h-3 w-3" />
-                    ) : (
-                      <TrendingDown className="h-3 w-3" />
-                    )}
+                    {token.priceChange24h >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                     {(token.priceChange24h * 100).toFixed(2)}%
                   </div>
                 </div>
-
-                {/* Bonding curve progress */}
                 <div className="mb-2">
                   <div className="flex justify-between text-[10px] text-zinc-600 mb-1">
                     <span>Bonding Curve</span>
@@ -184,21 +272,10 @@ export default function TokensPage() {
                     />
                   </div>
                 </div>
-
-                {/* Stats row */}
                 <div className="flex items-center justify-between text-[10px] text-zinc-600 pt-2 border-t border-zinc-800/50">
-                  <span className="flex items-center gap-1">
-                    <Users className="h-3 w-3" />
-                    {token.holderCount}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <DollarSign className="h-3 w-3" />
-                    {token.totalVolume.toLocaleString()}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Circle className="h-3 w-3" />
-                    {token.supply.toLocaleString()} / {token.maxSupply.toLocaleString()}
-                  </span>
+                  <span className="flex items-center gap-1"><Users className="h-3 w-3" />{token.holderCount}</span>
+                  <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" />{token.totalVolume.toLocaleString()}</span>
+                  <span className="flex items-center gap-1"><Circle className="h-3 w-3" />{token.supply.toLocaleString()} / {token.maxSupply.toLocaleString()}</span>
                 </div>
               </motion.button>
             ))}
@@ -206,27 +283,7 @@ export default function TokensPage() {
         </div>
       )}
 
-      {/* ── Connect to Trade Banner ── */}
-      {!isConnected && (
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mt-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 text-center"
-        >
-          <Wallet className="mx-auto h-8 w-8 text-zinc-600 mb-3" />
-          <h3 className="text-sm font-medium text-zinc-300 mb-2">Connect Your Wallet</h3>
-          <p className="text-xs text-zinc-500 mb-4 max-w-md mx-auto">
-            You need to connect your wallet to buy, sell, and trade fan tokens.
-            Trades interact with the GoalSwap bonding curve on X Layer.
-          </p>
-          <div className="inline-flex">
-            <ConnectButton label="Connect Wallet" accountStatus="avatar" showBalance={false} chainStatus="icon" />
-          </div>
-        </motion.div>
-      )}
-
-      {/* ── Token Detail / Trade Panel ── */}
+      {/* Token Detail / Trade Panel */}
       <AnimatePresence>
         {selectedToken && (
           <motion.div
@@ -251,12 +308,7 @@ export default function TokensPage() {
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => { setSelectedToken(null); setTradeResult(null); }}
-                className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-              >
-                Close
-              </button>
+              <button onClick={() => { setSelectedToken(null); resetTrade(); }} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Close</button>
             </div>
 
             {/* Stats grid */}
@@ -312,18 +364,41 @@ export default function TokensPage() {
 
             {/* Trade form */}
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <ArrowLeftRight className="h-4 w-4 text-zinc-500" />
-                <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Trade</span>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <ArrowLeftRight className="h-4 w-4 text-zinc-500" />
+                  <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Trade</span>
+                </div>
+                {isConnected && (
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <Wallet className="h-3 w-3 text-zinc-500" />
+                    <span className="text-zinc-500">Balance:</span>
+                    <span className="text-zinc-200 font-bold tabular-nums">{usdcBalance.toFixed(2)} USDC</span>
+                  </div>
+                )}
               </div>
 
               {!isConnected ? (
-                <div className="flex flex-col items-center gap-3 py-3">
+                <div className="flex flex-col items-center gap-3 py-4">
+                  <Wallet className="h-8 w-8 text-zinc-600" />
                   <p className="text-xs text-zinc-500">Connect your wallet to trade tokens</p>
                   <ConnectButton label="Connect Wallet" accountStatus="avatar" showBalance={false} chainStatus="icon" />
                 </div>
               ) : (
                 <>
+                  {/* Wallet info bar */}
+                  <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-3 w-3 text-emerald-400" />
+                      <span className="text-[10px] text-zinc-400">Connected</span>
+                      <span className="text-[10px] text-zinc-500 font-mono">{address?.slice(0, 6)}...{address?.slice(-4)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Shield className="h-3 w-3 text-emerald-500/50" />
+                      <span className="text-[10px] text-zinc-500">X Layer Testnet</span>
+                    </div>
+                  </div>
+
                   <div className="flex gap-3 items-end">
                     <div className="flex-1">
                       <label className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1.5 block">
@@ -332,45 +407,89 @@ export default function TokensPage() {
                       <input
                         type="number"
                         value={tradeAmount}
-                        onChange={(e) => setTradeAmount(e.target.value)}
+                        onChange={(e) => { setTradeAmount(e.target.value); setTradeStep("idle"); setTradeResult(null); setTradeError(null); }}
                         placeholder="0"
                         min="1"
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                        disabled={tradeLoading}
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
                       />
                     </div>
                     <button
                       onClick={() => handleTrade("buy")}
-                      disabled={tradeLoading || !tradeAmount}
-                      className="flex-1 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-black transition-all hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                      disabled={tradeLoading || !tradeAmount || parseFloat(tradeAmount) <= 0}
+                      className="flex-1 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-black transition-all hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                     >
-                      {tradeLoading ? "Processing..." : "Buy"}
+                      {tradeStep === "approving" && tradeLoading ? (
+                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Approving</>
+                      ) : tradeStep === "trading" && tradeLoading ? (
+                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Trading</>
+                      ) : (
+                        "Buy"
+                      )}
                     </button>
                     <button
                       onClick={() => handleTrade("sell")}
-                      disabled={tradeLoading || !tradeAmount}
-                      className="flex-1 rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-all hover:border-zinc-600 hover:text-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                      disabled={tradeLoading || !tradeAmount || parseFloat(tradeAmount) <= 0}
+                      className="flex-1 rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-all hover:border-zinc-600 hover:text-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                     >
-                      {tradeLoading ? "Processing..." : "Sell"}
+                      {tradeStep === "trading" && tradeLoading ? (
+                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Selling</>
+                      ) : (
+                        "Sell"
+                      )}
                     </button>
                   </div>
 
+                  {/* Cost estimate */}
+                  {tradeAmount && parseFloat(tradeAmount) > 0 && (
+                    <div className="mt-2 flex items-center justify-between text-[10px] text-zinc-600">
+                      <span>Estimated cost</span>
+                      <span className="text-zinc-400 font-medium tabular-nums">${tradeCost} USDC</span>
+                    </div>
+                  )}
+
+                  {/* Balance warning */}
+                  {tradeAmount && parseFloat(tradeAmount) > 0 && parseFloat(tradeCost) > usdcBalance && (
+                    <div className="mt-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-[10px] text-red-400">
+                      Insufficient USDC balance. You have {usdcBalance.toFixed(2)} USDC.
+                    </div>
+                  )}
+
+                  {/* Trade result */}
                   <AnimatePresence>
-                    {tradeResult && (
+                    {tradeResult && tradeStep === "success" && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
                         className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 overflow-hidden"
                       >
-                        <p className="text-xs text-emerald-400 font-medium mb-1">
-                          {tradeResult.action === "buy" ? "Purchased" : "Sold"} {tradeResult.amountOut.toLocaleString()} tokens
-                        </p>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
+                          <p className="text-xs text-emerald-400 font-medium">
+                            {tradeResult.action === "buy" ? "Purchased" : "Sold"} {tradeResult.amountOut.toLocaleString()} tokens
+                          </p>
+                        </div>
                         <p className="text-[10px] text-zinc-500">
                           {tradeResult.action === "buy"
-                            ? `Cost: $${tradeResult.amountIn.toFixed(2)}`
-                            : `Received: $${tradeResult.amountOut.toFixed(2)}`}
+                            ? `Cost: $${tradeResult.amountIn.toFixed(2)} USDC`
+                            : `Received: $${tradeResult.amountOut.toFixed(2)} USDC`}
                           {" · "}New price: {formatPrice(tradeResult.price)}
                         </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Trade error */}
+                  <AnimatePresence>
+                    {tradeError && tradeStep === "error" && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3 overflow-hidden"
+                      >
+                        <p className="text-xs text-red-400">{tradeError}</p>
                       </motion.div>
                     )}
                   </AnimatePresence>

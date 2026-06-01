@@ -244,14 +244,90 @@ function ScoreDisplay({ homeScore, awayScore, isLive }: { homeScore: number; awa
 
 type OutcomeType = "home" | "draw" | "away";
 
-const ODDS_DATA: Record<OutcomeType, { odds: string; prob: string }> = {
-  home: { odds: "2.45", prob: "40.8%" },
-  draw: { odds: "3.10", prob: "32.3%" },
-  away: { odds: "2.85", prob: "35.1%" },
-};
+/**
+ * Compute dynamic odds from match state.
+ * Uses score differential, time remaining, and fee tier
+ * to derive realistic decimal odds with implied probabilities.
+ */
+function computeOdds(
+  homeScore: number,
+  awayScore: number,
+  minute: number,
+  isFinished: boolean,
+  isUpcoming: boolean,
+  feeTier: number,
+): Record<OutcomeType, { odds: string; prob: string }> {
+  if (isFinished) {
+    // Settled match — winner odds are 1.00, losers are 999
+    if (homeScore > awayScore) return { home: { odds: "1.00", prob: "100%" }, draw: { odds: "999", prob: "0%" }, away: { odds: "999", prob: "0%" } };
+    if (awayScore > homeScore) return { home: { odds: "999", prob: "0%" }, draw: { odds: "999", prob: "0%" }, away: { odds: "1.00", prob: "100%" } };
+    return { home: { odds: "999", prob: "0%" }, draw: { odds: "1.00", prob: "100%" }, away: { odds: "999", prob: "0%" } };
+  }
 
-function OddsCard({ type, teamName, palette, isSelected, onSelect }: { type: OutcomeType; teamName?: string; palette?: { accent: string; colors: string[] }; isSelected: boolean; onSelect: () => void }) {
-  const data = ODDS_DATA[type];
+  // Base probabilities (pre-match: home slight advantage)
+  let homeP = 0.42;
+  let drawP = 0.28;
+  let awayP = 0.30;
+
+  if (!isUpcoming && minute > 0) {
+    const elapsed = Math.min(minute, 90);
+    const timeFactor = elapsed / 90;
+    const goalDiff = homeScore - awayScore;
+    const totalGoals = homeScore + awayScore;
+
+    // Score impact — each goal shifts probability ~18-25%
+    if (goalDiff > 0) {
+      // Home leading
+      const leadBoost = Math.min(goalDiff * 0.22, 0.55);
+      const timeBoost = timeFactor * 0.15;
+      homeP = 0.42 + leadBoost + timeBoost;
+      awayP = Math.max(0.05, 0.30 - leadBoost - timeBoost * 1.5);
+      drawP = Math.max(0.05, 1 - homeP - awayP);
+    } else if (goalDiff < 0) {
+      // Away leading
+      const leadBoost = Math.min(Math.abs(goalDiff) * 0.22, 0.55);
+      const timeBoost = timeFactor * 0.15;
+      awayP = 0.30 + leadBoost + timeBoost;
+      homeP = Math.max(0.05, 0.42 - leadBoost - timeBoost * 1.5);
+      drawP = Math.max(0.05, 1 - homeP - awayP);
+    } else {
+      // Drawn — time reduces draw prob slightly late
+      if (elapsed >= 75) {
+        drawP = 0.22 - (elapsed - 75) * 0.003;
+        homeP = (1 - drawP) * 0.52;
+        awayP = 1 - homeP - drawP;
+      }
+    }
+
+    // High-scoring games reduce draw probability
+    if (totalGoals >= 3) {
+      drawP = Math.max(0.03, drawP * 0.6);
+      const remainder = 1 - drawP;
+      if (goalDiff > 0) { homeP = remainder * 0.7; awayP = remainder * 0.3; }
+      else if (goalDiff < 0) { awayP = remainder * 0.7; homeP = remainder * 0.3; }
+      else { homeP = remainder * 0.5; awayP = remainder * 0.5; }
+    }
+  }
+
+  // Normalize
+  const total = homeP + drawP + awayP;
+  homeP /= total;
+  drawP /= total;
+  awayP /= total;
+
+  // Add margin (overround ~5%)
+  const margin = 1.05;
+  const toOdds = (p: number) => (margin / Math.max(p, 0.01)).toFixed(2);
+  const toProb = (p: number) => `${(p * 100).toFixed(1)}%`;
+
+  return {
+    home: { odds: toOdds(homeP), prob: toProb(homeP) },
+    draw: { odds: toOdds(drawP), prob: toProb(drawP) },
+    away: { odds: toOdds(awayP), prob: toProb(awayP) },
+  };
+}
+
+function OddsCard({ type, teamName, palette, isSelected, onSelect, odds, prob }: { type: OutcomeType; teamName?: string; palette?: { accent: string; colors: string[] }; isSelected: boolean; onSelect: () => void; odds: string; prob: string }) {
   const accentColor = type === "draw" ? "#8B5CF6" : palette?.accent ?? "#00E68A";
   const displayLabel = type === "home" ? teamName ?? "Home" : type === "away" ? teamName ?? "Away" : "Draw";
 
@@ -282,8 +358,8 @@ function OddsCard({ type, teamName, palette, isSelected, onSelect }: { type: Out
         <span className="text-sm font-semibold text-zinc-200">{displayLabel}</span>
       </div>
       <div className="flex items-baseline justify-between">
-        <span className="text-2xl sm:text-3xl font-bold tabular-nums" style={{ color: accentColor }}>{data.odds}</span>
-        <span className="text-xs text-zinc-500">{data.prob}</span>
+        <span className="text-2xl sm:text-3xl font-bold tabular-nums" style={{ color: accentColor }}>{odds}</span>
+        <span className="text-xs text-zinc-500">{prob}</span>
       </div>
       {isSelected && (
         <motion.div layoutId="selected-odds" className="absolute -inset-px rounded-xl border-2 border-emerald-500/30 pointer-events-none" transition={{ type: "spring", stiffness: 300, damping: 25 }} />
@@ -296,11 +372,15 @@ function OddsCard({ type, teamName, palette, isSelected, onSelect }: { type: Out
 //  MARKET SENTIMENT — Radial gauge
 // ═══════════════════════════════════════════════════════
 
-function MarketSentimentGauge({ sentiment = 72 }: { sentiment?: number }) {
+function MarketSentimentGauge({ odds }: { odds?: Record<OutcomeType, { odds: string; prob: string }> }) {
+  const homeProb = odds ? parseFloat(odds.home.prob) : 42;
+  const drawProb = odds ? parseFloat(odds.draw.prob) : 28;
+  const awayProb = odds ? parseFloat(odds.away.prob) : 30;
+  const displaySentiment = Math.min(Math.round(homeProb), 100);
   const radius = 48;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (sentiment / 100) * circumference;
-  const isBullish = sentiment >= 50;
+  const offset = circumference - (displaySentiment / 100) * circumference;
+  const isBullish = displaySentiment >= 50;
 
   return (
     <div className="rounded-xl border border-white/[0.06] bg-card/60 backdrop-blur-xl p-5">
@@ -327,7 +407,7 @@ function MarketSentimentGauge({ sentiment = 72 }: { sentiment?: number }) {
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-2xl font-black tabular-nums text-white">{sentiment}%</span>
+            <span className="text-2xl font-black tabular-nums text-white">{displaySentiment}%</span>
             <span className={cn("text-[10px] font-bold uppercase tracking-wider mt-0.5", isBullish ? "text-emerald-400" : "text-yellow-400")}>
               {isBullish ? "Bullish" : "Bearish"}
             </span>
@@ -335,9 +415,9 @@ function MarketSentimentGauge({ sentiment = 72 }: { sentiment?: number }) {
         </div>
         <div className="flex-1 space-y-3">
           {[
-            { label: "Home Win", value: 42, color: "#00E68A" },
-            { label: "Draw", value: 28, color: "#8B5CF6" },
-            { label: "Away Win", value: 30, color: "#FFD84D" },
+            { label: "Home Win", value: Math.min(Math.round(homeProb), 100), color: "#00E68A" },
+            { label: "Draw", value: Math.min(Math.round(drawProb), 100), color: "#8B5CF6" },
+            { label: "Away Win", value: Math.min(Math.round(awayProb), 100), color: "#FFD84D" },
           ].map((item) => (
             <div key={item.label} className="space-y-1">
               <div className="flex items-center justify-between text-xs">
@@ -542,6 +622,14 @@ export default function MatchDetailPage({ params }: { params: Promise<{ matchId:
   const homePalette = getFlagPalette(homeCountryCode);
   const awayPalette = getFlagPalette(awayCountryCode);
 
+  // Compute dynamic odds from match state
+  const computedOdds = useMemo(() => {
+    const hs = liveState?.homeScore ?? detail.homeScore;
+    const as = liveState?.awayScore ?? detail.awayScore;
+    const min = liveState?.minute ?? detail.minute;
+    return computeOdds(hs, as, min, isFinished, isUpcoming, currentFee);
+  }, [detail, liveState, isFinished, isUpcoming, currentFee]);
+
   // ── Render ──
   return (
     <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -641,9 +729,9 @@ export default function MatchDetailPage({ params }: { params: Promise<{ matchId:
           <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Market Odds</h3>
         </div>
         <div className="flex gap-3 sm:gap-4">
-          <OddsCard type="home" teamName={detail.homeTeam} palette={homePalette} isSelected={selectedOddsOutcome === "home"} onSelect={() => setSelectedOddsOutcome("home")} />
-          <OddsCard type="draw" isSelected={selectedOddsOutcome === "draw"} onSelect={() => setSelectedOddsOutcome("draw")} />
-          <OddsCard type="away" teamName={detail.awayTeam} palette={awayPalette} isSelected={selectedOddsOutcome === "away"} onSelect={() => setSelectedOddsOutcome("away")} />
+          <OddsCard type="home" teamName={detail.homeTeam} palette={homePalette} isSelected={selectedOddsOutcome === "home"} onSelect={() => setSelectedOddsOutcome("home")} odds={computedOdds?.home.odds ?? "—"} prob={computedOdds?.home.prob ?? "—"} />
+          <OddsCard type="draw" isSelected={selectedOddsOutcome === "draw"} onSelect={() => setSelectedOddsOutcome("draw")} odds={computedOdds?.draw.odds ?? "—"} prob={computedOdds?.draw.prob ?? "—"} />
+          <OddsCard type="away" teamName={detail.awayTeam} palette={awayPalette} isSelected={selectedOddsOutcome === "away"} onSelect={() => setSelectedOddsOutcome("away")} odds={computedOdds?.away.odds ?? "—"} prob={computedOdds?.away.prob ?? "—"} />
         </div>
       </motion.div>
 
@@ -673,7 +761,7 @@ export default function MatchDetailPage({ params }: { params: Promise<{ matchId:
 
           {/* Market Sentiment */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16, duration: 0.3 }}>
-            <MarketSentimentGauge />
+            <MarketSentimentGauge odds={computedOdds ?? undefined} />
           </motion.div>
 
           {/* Fee Ticker */}
