@@ -11,6 +11,7 @@
 
 import type TelegramBot from "node-telegram-bot-api";
 import { api } from "../services/api.js";
+import { shortId, resolveShortId } from "../services/shortId.js";
 import {
   getUserSubscriptions,
   addSubscription,
@@ -70,7 +71,7 @@ export function registerAlertCommands(bot: TelegramBot): void {
             keyboard.push([
               {
                 text: `${m.homeTeam} vs ${m.awayTeam}`,
-                callback_data: `alert_select_${m.matchId}`,
+                callback_data: `alert_select_${shortId(m.matchId)}`,
               },
             ]);
           }
@@ -100,10 +101,10 @@ export function registerAlertCommands(bot: TelegramBot): void {
         ];
 
         const keyboard: TelegramBot.InlineKeyboardButton[][] = [
-          [{ text: "⚽ Goal", callback_data: `alert_type_${resolvedMatchId}_goal` }],
-          [{ text: "💰 Price Alert", callback_data: `alert_type_${resolvedMatchId}_price` }],
-          [{ text: "⚡ Fee Spike", callback_data: `alert_type_${resolvedMatchId}_fee` }],
-          [{ text: "🏁 Settlement", callback_data: `alert_type_${resolvedMatchId}_settlement` }],
+          [{ text: "⚽ Goal", callback_data: `alert_type_${shortId(resolvedMatchId)}_goal` }],
+          [{ text: "💰 Price Alert", callback_data: `alert_type_${shortId(resolvedMatchId)}_price` }],
+          [{ text: "⚡ Fee Spike", callback_data: `alert_type_${shortId(resolvedMatchId)}_fee` }],
+          [{ text: "🏁 Settlement", callback_data: `alert_type_${shortId(resolvedMatchId)}_settlement` }],
           [{ text: "🔙 Back", callback_data: `alerts_list` }],
         ];
 
@@ -209,9 +210,9 @@ export function registerAlertCommands(bot: TelegramBot): void {
     const messageId = query.message.message_id;
 
     // ── Alert type selection ──
-    const alertTypeMatch = query.data.match(/^alert_type_(.+?)_(goal|price|fee|settlement)$/);
+    const alertTypeMatch = query.data.match(/^alert_type_([0-9a-fx]+?)_(goal|price|fee|settlement)$/);
     if (alertTypeMatch) {
-      const matchId = alertTypeMatch[1];
+      const matchId = resolveShortId(alertTypeMatch[1]) ?? alertTypeMatch[1];
       const alertType = alertTypeMatch[2] as (typeof ALERT_TYPES)[number];
 
       await bot.answerCallbackQuery(query.id);
@@ -246,9 +247,9 @@ export function registerAlertCommands(bot: TelegramBot): void {
     }
 
     // ── Alert match selection (from search) ──
-    const alertSelectMatch = query.data.match(/^alert_select_(.+)$/);
+    const alertSelectMatch = query.data.match(/^alert_select_([0-9a-fx]+)$/);
     if (alertSelectMatch) {
-      const matchId = alertSelectMatch[1];
+      const matchId = resolveShortId(alertSelectMatch[1]) ?? alertSelectMatch[1];
       await bot.answerCallbackQuery(query.id);
       await bot.sendMessage(chatId, `/alarm ${matchId}`);
       return;
@@ -262,7 +263,7 @@ export function registerAlertCommands(bot: TelegramBot): void {
     }
 
     // ── Unsubscribe single alert ──
-    const unsubMatch = query.data.match(/^alert_unsub_(.+)$/);
+    const unsubMatch = query.data.match(/^alert_unsub_([0-9a-f]+)$/);
     if (unsubMatch) {
       const subId = unsubMatch[1];
       const removed = deactivateSubscription(subId, userId);
@@ -275,9 +276,9 @@ export function registerAlertCommands(bot: TelegramBot): void {
     }
 
     // ── Unsubscribe from goal alert (from push notification) ──
-    const unsubGoalMatch = query.data.match(/^unsub_goal_(.+)$/);
+    const unsubGoalMatch = query.data.match(/^unsub_goal_([0-9a-fx]+)$/);
     if (unsubGoalMatch) {
-      const matchId = unsubGoalMatch[1];
+      const matchId = resolveShortId(unsubGoalMatch[1]) ?? unsubGoalMatch[1];
       const removed = removeUserSubscriptionsByMatch(userId, matchId);
       await bot.answerCallbackQuery(query.id, {
         text: removed ? `✅ Removed alerts for ${matchId}` : "No alerts found",

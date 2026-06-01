@@ -1,6 +1,7 @@
 import type TelegramBot from "node-telegram-bot-api";
 import { api } from "../services/api.js";
 import { upsertUser } from "../services/db.js";
+import { FRONTEND_URL } from "../config.js";
 
 export function registerLeaderboardCommands(bot: TelegramBot): void {
   // ── /leaderboard ──
@@ -23,8 +24,8 @@ export function registerLeaderboardCommands(bot: TelegramBot): void {
     });
 
     const refCode = username ?? `user_${(userId ?? chatId).toString(36)}`;
-    const refLink = `https://t.me/GoalSwapArenaBot?start=ref_${refCode}`;
-    const appLink = `https://goalswap.xyz?ref=${refCode}`;
+    const refLink = `https://t.me/Goalswap_bot?start=ref_${refCode}`;
+    const appLink = `${FRONTEND_URL}?ref=${refCode}`;
 
     const message = [
       "🔗 *Referral Program*",
@@ -140,7 +141,7 @@ async function sendLeaderboard(
 
   lines.push("");
   lines.push("Trade on live matches to climb the rankings!");
-  lines.push("[▶️ Trade Now](https://goalswap.xyz/matches)");
+  lines.push(`[▶️ Trade Now](${FRONTEND_URL}/matches)`);
 
   await bot.editMessageText(lines.join("\n"), {
     chat_id: chatId,

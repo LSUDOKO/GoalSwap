@@ -7,6 +7,7 @@
 
 import type TelegramBot from "node-telegram-bot-api";
 import { api } from "../services/api.js";
+import { FRONTEND_URL } from "../config.js";
 import {
   upsertUser,
   setWalletAddress,
@@ -194,7 +195,7 @@ async function sendPortfolio(
   }
 
   lines.push(``);
-  lines.push(`[▶️ Start Trading](https://goalswap.xyz/?ref=${address})`);
+  lines.push(`[▶️ Start Trading](${FRONTEND_URL}/?ref=${address})`);
 
   await bot.editMessageText(lines.join("\n"), {
     chat_id: chatId,

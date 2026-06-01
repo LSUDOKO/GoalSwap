@@ -8,6 +8,7 @@
 import type TelegramBot from "node-telegram-bot-api";
 import { api } from "../services/api.js";
 import { formatFeePct, getFeeEmoji } from "../types.js";
+import { shortId, resolveShortId } from "../services/shortId.js";
 
 const MATCHES_PER_PAGE = 5;
 
@@ -25,6 +26,13 @@ export function registerLiveCommand(bot: TelegramBot): void {
     const messageId = query.message?.message_id;
     if (!chatId || !messageId) return;
 
+    // cmd_live: navigate to live matches (from start, leaderboard, etc.)
+    if (query.data === "cmd_live") {
+      await bot.answerCallbackQuery(query.id, { text: "Loading live matches...", show_alert: false });
+      await bot.sendMessage(chatId, "/live");
+      return;
+    }
+
     // Match navigation: live_page_{page}
     const liveMatch = query.data.match(/^live_page_(\d+)$/);
     if (liveMatch) {
@@ -41,12 +49,11 @@ export function registerLiveCommand(bot: TelegramBot): void {
     // Match detail: live_detail_{matchId}
     const detailMatch = query.data.match(/^live_detail_(.+)$/);
     if (detailMatch) {
-      const matchId = detailMatch[1];
+      const matchId = resolveShortId(detailMatch[1]) ?? detailMatch[1];
       await bot.answerCallbackQuery(query.id, {
-        text: `Loading match ${matchId}...`,
+        text: `Loading match...`,
         show_alert: false,
       });
-      // Forward to /match command by sending a message
       await bot.sendMessage(chatId, `/match ${matchId}`);
       return;
     }
@@ -153,7 +160,7 @@ async function sendLivePage(
       keyboard.push([
         {
           text: `📊 ${match.homeTeam} vs ${match.awayTeam}`,
-          callback_data: `live_detail_${match.matchId}`,
+          callback_data: `live_detail_${shortId(match.matchId)}`,
         },
       ]);
     }

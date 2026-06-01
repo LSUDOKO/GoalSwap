@@ -11,6 +11,7 @@
 
 import TelegramBot from "node-telegram-bot-api";
 import { api } from "./api.js";
+import { shortId } from "./shortId.js";
 import {
   getSubscriptionsByMatchAndType,
   getSubscriptionsByMatch,
@@ -126,7 +127,7 @@ async function sendGoalAlert(
               { text: "📊 View Match", url: `${frontendUrl}/match/${match.matchId}` },
             ],
             [
-              { text: "🔕 Unsubscribe", callback_data: `unsub_goal_${match.matchId}` },
+              { text: "🔕 Unsubscribe", callback_data: `unsub_goal_${shortId(match.matchId)}` },
             ],
           ],
         },

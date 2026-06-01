@@ -1,5 +1,6 @@
 import type TelegramBot from "node-telegram-bot-api";
 import { api } from "../services/api.js";
+import { FRONTEND_URL } from "../config.js";
 
 export function registerBracketsCommand(bot: TelegramBot): void {
   bot.onText(/^\/brackets(?:\s+(.+))?$/i, async (msg, match) => {
@@ -20,7 +21,7 @@ export function registerBracketsCommand(bot: TelegramBot): void {
       "Brackets are transferable ERC-721 NFTs —",
       "trade them on secondary markets before the tournament ends.",
       "",
-      "👉 [View & Mint Brackets](https://goalswap.xyz/brackets)",
+      `👉 [View & Mint Brackets](${FRONTEND_URL}/brackets)`,
     ];
 
     if (address) {
@@ -35,7 +36,7 @@ export function registerBracketsCommand(bot: TelegramBot): void {
       reply_markup: {
         inline_keyboard: [
           [
-            { text: "🏟️ Mint Brackets", url: "https://goalswap.xyz/brackets" },
+            { text: "🏟️ Mint Brackets", url: `${FRONTEND_URL}/brackets` },
             { text: "📊 Matches", callback_data: "cmd_live" },
           ],
         ],

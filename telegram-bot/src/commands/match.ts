@@ -8,6 +8,8 @@
 import type TelegramBot from "node-telegram-bot-api";
 import { api } from "../services/api.js";
 import { formatFeePct, getFeeEmoji } from "../types.js";
+import { shortId, resolveShortId } from "../services/shortId.js";
+import { FRONTEND_URL } from "../config.js";
 import type { MatchSummary, MatchDetail } from "../types.js";
 
 export function registerMatchCommands(bot: TelegramBot): void {
@@ -69,7 +71,7 @@ export function registerMatchCommands(bot: TelegramBot): void {
       keyboard.push([
         {
           text: `${statusEmoji} ${m.homeTeam} vs ${m.awayTeam}`,
-          callback_data: `match_select_${m.matchId}`,
+          callback_data: `match_select_${shortId(m.matchId)}`,
         },
       ]);
     }
@@ -131,7 +133,7 @@ export function registerMatchCommands(bot: TelegramBot): void {
       ``,
       `Fee: ${feeEmoji} ${formatFeePct(detail.feeTier)} (${detail.feeReason})`,
       ``,
-      `[▶️ Trade Now](https://goalswap.xyz/match/${detail.matchId})`,
+      `[▶️ Trade Now](${FRONTEND_URL}/match/${detail.matchId})`,
     ].join("\n");
 
     await bot.sendMessage(chatId, message, {
@@ -140,8 +142,8 @@ export function registerMatchCommands(bot: TelegramBot): void {
       reply_markup: {
         inline_keyboard: [
           [
-            { text: "▶️ Trade Now", url: `https://goalswap.xyz/match/${detail.matchId}` },
-            { text: "🔔 Set Alert", callback_data: `match_alert_${detail.matchId}` },
+            { text: "▶️ Trade Now", url: `${FRONTEND_URL}/match/${detail.matchId}` },
+            { text: "🔔 Set Alert", callback_data: `match_alert_${shortId(detail.matchId)}` },
           ],
         ],
       },
@@ -155,9 +157,9 @@ export function registerMatchCommands(bot: TelegramBot): void {
     if (!chatId) return;
 
     // match_select_{matchId}
-    const matchSelect = query.data.match(/^match_select_(.+)$/);
+    const matchSelect = query.data.match(/^match_select_([0-9a-fx]+)$/);
     if (matchSelect) {
-      const matchId = matchSelect[1];
+      const matchId = resolveShortId(matchSelect[1]) ?? matchSelect[1];
       await bot.answerCallbackQuery(query.id, {
         text: `Loading ${matchId}...`,
       });
@@ -173,9 +175,9 @@ export function registerMatchCommands(bot: TelegramBot): void {
     }
 
     // match_alert_{matchId} (from /odds / match detail)
-    const alertMatch = query.data.match(/^match_alert_(.+)$/);
+    const alertMatch = query.data.match(/^match_alert_([0-9a-fx]+)$/);
     if (alertMatch) {
-      const matchId = alertMatch[1];
+      const matchId = resolveShortId(alertMatch[1]) ?? alertMatch[1];
       await bot.answerCallbackQuery(query.id);
       await bot.sendMessage(chatId, [
         `🔔 Set an alert for \`${matchId}\`:`,
@@ -190,24 +192,26 @@ export function registerMatchCommands(bot: TelegramBot): void {
     }
 
     // odds_{matchId} (from match detail)
-    const oddsMatch = query.data.match(/^odds_(.+)$/);
+    const oddsMatch = query.data.match(/^odds_([0-9a-fx]+)$/);
     if (oddsMatch) {
+      const matchId = resolveShortId(oddsMatch[1]) ?? oddsMatch[1];
       await bot.answerCallbackQuery(query.id);
-      await bot.sendMessage(chatId, `/odds ${oddsMatch[1]}`);
+      await bot.sendMessage(chatId, `/odds ${matchId}`);
       return;
     }
 
     // refresh_{matchId} (from match detail)
-    const refreshMatch = query.data.match(/^refresh_(.+)$/);
+    const refreshMatch = query.data.match(/^refresh_([0-9a-fx]+)$/);
     if (refreshMatch) {
+      const matchId = resolveShortId(refreshMatch[1]) ?? refreshMatch[1];
       await bot.answerCallbackQuery(query.id, {
         text: "Refreshing...",
       });
-      const detail = await api.getMatchDetail(refreshMatch[1]);
+      const detail = await api.getMatchDetail(matchId);
       if (detail) {
         await sendMatchDetail(bot, chatId, detail);
       } else {
-        await bot.sendMessage(chatId, `Match \`${refreshMatch[1]}\` not found.`, {
+        await bot.sendMessage(chatId, `Match not found.`, {
           parse_mode: "Markdown",
         });
       }
@@ -238,7 +242,7 @@ async function sendMatchDetail(
     `${feeEmoji} Fee: ${formatFeePct(detail.feeTier)}`,
     `📝 Reason: ${detail.feeReason}`,
     ``,
-    `[▶️ Trade Now](https://goalswap.xyz/match/${detail.matchId})`,
+    `[▶️ Trade Now](${FRONTEND_URL}/match/${detail.matchId})`,
     `📊 Odds available below ⬇️`,
   ].join("\n");
 
@@ -248,12 +252,12 @@ async function sendMatchDetail(
     reply_markup: {
       inline_keyboard: [
         [
-          { text: "▶️ Trade Now", url: `https://goalswap.xyz/match/${detail.matchId}` },
-          { text: "📊 Odds", callback_data: `odds_${detail.matchId}` },
+          { text: "▶️ Trade Now", url: `${FRONTEND_URL}/match/${detail.matchId}` },
+          { text: "📊 Odds", callback_data: `odds_${shortId(detail.matchId)}` },
         ],
         [
-          { text: "🔔 Set Alert", callback_data: `match_alert_${detail.matchId}` },
-          { text: "🔄 Refresh", callback_data: `refresh_${detail.matchId}` },
+          { text: "🔔 Set Alert", callback_data: `match_alert_${shortId(detail.matchId)}` },
+          { text: "🔄 Refresh", callback_data: `refresh_${shortId(detail.matchId)}` },
         ],
       ],
     },
