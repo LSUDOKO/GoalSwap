@@ -93,6 +93,14 @@ export class WebhookServer {
   }
 
   /**
+   * Expose the underlying HTTP server for sharing with WebSocketServer.
+   * On Render, both Express routes and Socket.IO need to run on the same PORT.
+   */
+  getHttpServer(): HttpServer {
+    return this.httpServer;
+  }
+
+  /**
    * Stop the webhook server.
    */
   stop(): Promise<void> {

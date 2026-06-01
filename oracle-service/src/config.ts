@@ -161,15 +161,15 @@ export const config = {
 
   // ── WebSocket ──
   ws: {
-    port: Number(process.env.WS_PORT ?? 8080),
+    port: Number(process.env.WS_PORT ?? process.env.PORT ?? 8080),
     heartbeatIntervalMs: 30_000,     // ping every 30s
     disconnectTimeoutMs: 90_000,     // disconnect after 90s inactive
     maxConnectionsPerIp: 10,
   },
 
-  // ── Webhook ──
+  // ── Webhook (HTTP/REST) ──
   webhook: {
-    port: Number(process.env.WEBHOOK_PORT ?? 3002),
+    port: Number(process.env.WEBHOOK_PORT ?? process.env.PORT ?? 3002),
   },
 
   // ── Blockchain Writer ──

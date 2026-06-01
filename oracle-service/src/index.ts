@@ -48,9 +48,13 @@ const multiSportFetcher = new MultiSportFetcher();
 const stateValidator = new StateValidator();
 const blockchainWriter = new BlockchainWriter();
 const redisCache = new RedisCache();
-const wsServer = new WebSocketServer();
-const xBot = new XBot();
 const webhookServer = new WebhookServer();
+
+// On Render, both HTTP (Express) and WebSocket (Socket.IO) must share the same PORT.
+// WebSocketServer receives the webhook server's HTTP server to avoid port conflicts.
+const wsServer = new WebSocketServer(webhookServer.getHttpServer());
+
+const xBot = new XBot();
 
 // Wire dependencies
 webhookServer.setDependencies(wsServer, redisCache, stateValidator, multiSportFetcher);

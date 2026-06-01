@@ -27,13 +27,21 @@ import type {
 } from "./types.js";
 
 export class WebSocketServer {
-  private io: SocketServer;
+  private io!: SocketServer;
   private httpServer: HttpServer;
+  private isExternalServer: boolean;
   private connectionCounts = new Map<string, number>();
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor() {
-    this.httpServer = createServer();
+  /**
+   * @param existingHttpServer  Optional HTTP server to share with webhook/Express.
+   *                            When provided, both Socket.IO and Express run on the same port
+   *                            (required for Render deployment which assigns a single PORT).
+   *                            When omitted, WebSocket creates its own server on config.ws.port.
+   */
+  constructor(existingHttpServer?: HttpServer) {
+    this.isExternalServer = existingHttpServer !== undefined;
+    this.httpServer = existingHttpServer ?? createServer();
     this.io = new SocketServer(this.httpServer, {
       cors: {
         origin: "*", // In production, restrict to frontend domain
@@ -49,12 +57,18 @@ export class WebSocketServer {
 
   /**
    * Start the WebSocket server.
+   * If using a shared external HTTP server (attached via constructor), the server
+   * is already managed by WebhookServer — we only start the heartbeat here.
    */
   start(): Promise<void> {
+    this._startHeartbeat();
+    if (this.isExternalServer) {
+      console.log(`[WebSocket] Attached to shared HTTP server (port managed externally)`);
+      return Promise.resolve();
+    }
     return new Promise((resolve) => {
       this.httpServer.listen(config.ws.port, () => {
         console.log(`[WebSocket] Server listening on port ${config.ws.port}`);
-        this._startHeartbeat();
         resolve();
       });
     });

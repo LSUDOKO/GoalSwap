@@ -1,0 +1,32 @@
+# GoalSwap Oracle — Render Blueprint
+#
+# This file is automatically detected by Render when you connect your GitHub repo.
+# It configures the oracle service to run on Render's free tier.
+#
+# Get started:
+#   1. Push this repo to GitHub
+#   2. Go to https://dashboard.render.com
+#   3. Click "New Web Service" → "Build and deploy from a Git repository"
+#   4. Select this repo, Render auto-detects this file
+#   5. Set the env vars listed below in the Render Dashboard
+#   6. Deploy — the service will build and start automatically
+
+services:
+  - type: web
+    name: goalswap-oracle
+    runtime: node
+    plan: free
+    rootDir: oracle-service
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # These env vars MUST be set via the Render Dashboard:
+      # X_LAYER_RPC, CHAIN_ID, ORACLE_PRIVATE_KEY,
+      # HOOK_CONTRACT, OUTCOME_FACTORY, TROPHY_NFT, BRACKET_NFT,
+      # SPORTMONKS_TOKEN, API_SPORTS_KEY, RAPIDAPI_KEY,
+      # ODDS_API_KEY, FOOTBALL_DATA_KEY,
+      # REDIS_URL (optional — uses in-memory fallback if omitted)
+      #
+      # PORT is auto-assigned by Render (overrides config defaults)
