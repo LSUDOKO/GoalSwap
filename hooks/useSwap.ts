@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useWriteContract, useReadContract, useAccount } from "wagmi";
-import { parseUnits, encodeFunctionData } from "viem";
-import { contracts, erc20Abi, poolManagerAbi, hookAbi, outcomeTokenAbi, USDC_DECIMALS, defaultChain, FEE_TIERS, formatFeePct } from "@/lib/contracts";
+import { useWriteContract, useAccount } from "wagmi";
+import { parseUnits } from "viem";
+import { contracts, erc20Abi, poolManagerAbi, outcomeTokenAbi, USDC_DECIMALS, defaultChain, FEE_TIERS, formatFeePct } from "@/lib/contracts";
 
 interface SwapParams {
   matchId: string;
@@ -21,32 +21,7 @@ interface SwapState {
   tokensReceived: string | null;
 }
 
-/**
- * Get the dynamic fee from the WorldCupArenaHook contract.
- * Falls back to NORMAL fee (1%) if the call fails.
- */
-function useDynamicFee(matchId: string): { fee: number; feeReason: string } {
-  // Attempt to read fee from hook — the contract uses PoolKey struct;
-  // for frontend preview, we use a heuristic based on match state
-  // The real fee is applied by the hook during swap, so this is for UI display only
-  return { fee: FEE_TIERS.NORMAL, feeReason: "Normal play" };
-}
 
-/**
- * Compute the outcome token address based on outcome selection.
- * The OutcomeTokenFactory creates tokens deterministically.
- * We use keccak256(matchId, outcome) to derive the token address,
- * falling back to the factory address as a reference.
- */
-function getOutcomeTokenHint(matchId: string, outcome: "home" | "away" | "draw"): `0x${string}` {
-  // The OutcomeTokenFactory stores token addresses in its registry.
-  // For the swap, we encode the outcome token hint in the call.
-  // MockPoolManager.simulateSwap just needs valid addresses — use factory-derived.
-  const outcomeIndex = outcome === "home" ? 0 : outcome === "away" ? 1 : 2;
-  // We'll pass the factory address as a placeholder; the mock PM records the swap.
-  // In production, the V4 router would resolve the actual OutcomeToken from the pool.
-  return contracts.outcomeFactory;
-}
 
 export function useSwap() {
   const { address } = useAccount();
@@ -69,9 +44,10 @@ export function useSwap() {
         return;
       }
 
-      // Use the dynamic fee from props or hook state (UI-level)
+      // Use the dynamic fee from props or oracle state
       const fee = params.currentFee ?? FEE_TIERS.NORMAL;
-      const outcomeTokenAddr = getOutcomeTokenHint(params.matchId, params.outcome);
+      // Use factory address as outcome token reference — MockPoolManager records the swap
+      const outcomeTokenAddr = contracts.outcomeFactory;
 
       setSwapState({ loading: true, step: "approving", txHash: null, swapId: null, error: null, tokensReceived: null });
 

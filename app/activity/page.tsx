@@ -178,7 +178,9 @@ export default function ActivityPage() {
                         transition={{ delay: i * 0.02, duration: 0.2 }}
                         className="group flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/30 px-4 py-3 transition-all hover:border-zinc-700 hover:bg-zinc-900/60"
                       >
-                        <span className={`shrink-0 w-8 h-8 rounded-lg ${sportCfg.color.split(' ')[0]} flex items-center justify-center`}>●</span>
+                        <span className="shrink-0 w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                          <span className="text-[10px] font-bold text-emerald-400">{item.sport.slice(0, 2).toUpperCase()}</span>
+                        </span>
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">

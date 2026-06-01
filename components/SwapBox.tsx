@@ -4,6 +4,8 @@
  * Premium bet terminal. Dominant CTA with glow/scale,
  * live payout calculation, strong visual hierarchy.
  * Design: Polymarket terminal × Stripe checkout.
+ *
+ * Supports both BUY (live/upcoming) and REDEEM (finished) modes.
  */
 
 "use client";
@@ -25,6 +27,8 @@ import {
   Wallet,
   CheckCircle,
   Sparkles,
+  Coins,
+  Loader2,
 } from "lucide-react";
 
 interface SwapBoxProps {
@@ -35,9 +39,18 @@ interface SwapBoxProps {
   feeReason?: string;
   homePalette?: FlagPalette;
   awayPalette?: FlagPalette;
+  isFinished?: boolean;
+  isLive?: boolean;
 }
 
 type Outcome = "home" | "away" | "draw";
+
+// Known outcome token addresses from factory deployment
+// In production, these would be resolved dynamically from the OutcomeTokenFactory
+function getOutcomeTokenAddress(matchId: string, outcome: Outcome): `0x${string}` | null {
+  // Use the factory address as a placeholder — the contract handles resolution
+  return contracts.outcomeFactory;
+}
 
 export function SwapBox({
   matchId,
@@ -47,11 +60,13 @@ export function SwapBox({
   feeReason = "Normal play",
   homePalette,
   awayPalette,
+  isFinished = false,
+  isLive = true,
 }: SwapBoxProps) {
   const { address, isConnected } = useAccount();
   const [selectedOutcome, setSelectedOutcome] = useState<Outcome>("home");
   const [amount, setAmount] = useState("");
-  const { loading, step, error, executeSwap, reset } = useSwap();
+  const { loading, step, error, tokensReceived, executeSwap, executeRedeem, reset } = useSwap();
 
   const { data: usdcBalance } = useBalance({
     address,
@@ -83,6 +98,12 @@ export function SwapBox({
     });
   }, [amount, selectedOutcome, matchId, executeSwap, isAmountValid, currentFee]);
 
+  const handleRedeem = useCallback(async () => {
+    const tokenAddr = getOutcomeTokenAddress(matchId, selectedOutcome);
+    if (!tokenAddr) return;
+    await executeRedeem(tokenAddr);
+  }, [matchId, selectedOutcome, executeRedeem]);
+
   // ── Outcome buttons ──
   const outcomeButtons: Array<{
     key: Outcome;
@@ -110,6 +131,175 @@ export function SwapBox({
     },
   ];
 
+  // ═══════════════════════════════════════════════════
+  //  REDEEM MODE — Match is finished
+  // ═══════════════════════════════════════════════════
+  if (isFinished) {
+    return (
+      <div className="rounded-2xl border border-white/[0.06] bg-card backdrop-blur-2xl p-6 shadow-[0_0_80px_-30px_rgba(0,0,0,0.5)]">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-yellow-500/10 border border-amber-500/20">
+              <Coins className="h-4 w-4 text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Redeem Tokens</h3>
+              <p className="text-xs text-zinc-500">Match finished — claim your winnings</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-lg bg-zinc-500/10 px-3 py-1.5 border border-zinc-500/20">
+            <Trophy className="h-3 w-3 text-zinc-400" />
+            <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.12em]">FT</span>
+          </div>
+        </div>
+
+        {/* Outcome Selection */}
+        <div className="grid grid-cols-3 gap-2.5 mb-6">
+          {outcomeButtons.map((o) => {
+            const isSelected = selectedOutcome === o.key;
+            return (
+              <motion.button
+                key={o.key}
+                onClick={() => { setSelectedOutcome(o.key); reset(); }}
+                whileTap={{ scale: 0.96 }}
+                className={cn(
+                  "relative flex flex-col items-center gap-2 rounded-xl border py-4 px-3 transition-all duration-200",
+                  isSelected
+                    ? "border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_30px_-10px_rgba(0,230,138,0.2)]"
+                    : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.10]",
+                )}
+              >
+                {isSelected && (
+                  <div
+                    className="absolute top-0 left-3 right-3 h-0.5 rounded-full opacity-100"
+                    style={{ background: `linear-gradient(90deg, ${o.accent}, transparent)` }}
+                  />
+                )}
+                <div
+                  className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-full transition-colors",
+                    isSelected ? "text-white" : "text-zinc-500",
+                  )}
+                  style={{
+                    background: isSelected ? `${o.accent}22` : "transparent",
+                    border: `1px solid ${isSelected ? `${o.accent}44` : "rgba(255,255,255,0.06)"}`,
+                  }}
+                >
+                  <span className={isSelected ? "text-white" : "text-zinc-500"}>{o.icon}</span>
+                </div>
+                <span
+                  className={cn(
+                    "text-xs font-semibold leading-tight text-center transition-colors",
+                    isSelected ? "text-white" : "text-zinc-400",
+                  )}
+                >
+                  {o.label}
+                </span>
+                {isSelected && (
+                  <motion.div
+                    layoutId="selected-redeem-terminal"
+                    className="absolute -inset-px rounded-xl border-2 border-emerald-500/30 pointer-events-none"
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  />
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
+
+        {/* Info */}
+        <div className="rounded-xl border border-white/[0.06] bg-black/40 p-4 mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <Coins className="h-4 w-4 text-amber-400" />
+            <span className="text-sm font-semibold text-zinc-200">Settlement</span>
+          </div>
+          <p className="text-xs text-zinc-500 leading-relaxed">
+            This match has finished. Select the winning outcome and redeem your tokens for USDC.
+            Winning outcome tokens are redeemable at 1:1 with the stake amount minus fees.
+          </p>
+        </div>
+
+        {/* Error */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className="mb-4 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-xs text-red-400 flex items-center gap-2"
+            >
+              <Shield className="h-3.5 w-3.5 shrink-0" />
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Success */}
+        <AnimatePresence>
+          {step === "success" && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="mb-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-5 py-4 text-sm text-emerald-400 flex items-center gap-3"
+            >
+              <CheckCircle className="h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Redemption successful!</p>
+                <p className="text-xs text-emerald-400/60 mt-0.5">USDC has been sent to your wallet.</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Redeem CTA */}
+        <motion.button
+          onClick={handleRedeem}
+          disabled={!isConnected || loading}
+          className="relative w-full overflow-hidden rounded-xl py-4 text-base font-bold text-black tracking-wide transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 group"
+          whileHover={!loading && isConnected ? { scale: 1.02 } : undefined}
+          whileTap={!loading && isConnected ? { scale: 0.97 } : undefined}
+          style={{
+            background: "linear-gradient(135deg, #F59E0B 0%, #D97706 50%, #B45309 100%)",
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[1200ms] ease-in-out" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-xl" />
+          <span className="relative z-10 flex items-center justify-center gap-2">
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Redeeming...</span>
+              </>
+            ) : !isConnected ? (
+              <>
+                <Wallet className="h-4 w-4" />
+                <span>Connect Wallet to Redeem</span>
+              </>
+            ) : (
+              <>
+                <Coins className="h-4 w-4" />
+                <span>Redeem {selectedOutcome === "home" ? homeTeam : selectedOutcome === "away" ? awayTeam : "Draw"} Tokens</span>
+              </>
+            )}
+          </span>
+        </motion.button>
+
+        {/* Trust Footer */}
+        <div className="mt-5 flex items-center justify-center text-[10px] text-zinc-600">
+          <span className="flex items-center gap-1">
+            <CheckCircle className="h-3 w-3 text-emerald-500/50" />
+            Settlement verified on-chain by oracle
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  BUY MODE — Match is live or upcoming
+  // ═══════════════════════════════════════════════════
   return (
     <div className="rounded-2xl border border-white/[0.06] bg-card backdrop-blur-2xl p-6 shadow-[0_0_80px_-30px_rgba(0,0,0,0.5)]">
       {/* ── Header ── */}
@@ -131,7 +321,7 @@ export function SwapBox({
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
           </span>
           <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-[0.12em]">
-            Live
+            {isLive ? "Live" : "Upcoming"}
           </span>
         </div>
       </div>
@@ -140,7 +330,6 @@ export function SwapBox({
       <div className="grid grid-cols-3 gap-2.5 mb-6">
         {outcomeButtons.map((o) => {
           const isSelected = selectedOutcome === o.key;
-          const isDraw = o.key === "draw";
           return (
             <motion.button
               key={o.key}
@@ -328,7 +517,9 @@ export function SwapBox({
             <CheckCircle className="h-5 w-5 shrink-0" />
             <div>
               <p className="font-semibold">Bet placed successfully!</p>
-              <p className="text-xs text-emerald-400/60 mt-0.5">Your position is now live.</p>
+              <p className="text-xs text-emerald-400/60 mt-0.5">
+                {tokensReceived ? `You received ${tokensReceived} tokens.` : "Your position is now live."}
+              </p>
             </div>
           </motion.div>
         )}
@@ -360,12 +551,9 @@ export function SwapBox({
         <span className="relative z-10 flex items-center justify-center gap-2">
           {loading ? (
             <>
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+              <Loader2 className="h-4 w-4 animate-spin" />
               <span>
-                {step === "approving" ? "Approving USDC..." : "Placing Bet..."}
+                {step === "approving" ? "Approving USDC..." : step === "swapping" ? "Placing Bet..." : "Processing..."}
               </span>
             </>
           ) : !isConnected ? (

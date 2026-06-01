@@ -439,7 +439,7 @@ export default function OddsPage() {
                                         </span>
                                       </span>
                                       <Link
-                                        href={`/matches`}
+                                        href={`/match/${fixture.id}`}
                                         className="text-[10px] text-emerald-500 hover:text-emerald-400 transition-colors"
                                       >
                                         Trade this match →

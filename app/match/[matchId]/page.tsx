@@ -803,6 +803,8 @@ export default function MatchDetailPage({ params }: { params: Promise<{ matchId:
             feeReason={feeReason}
             homePalette={homePalette}
             awayPalette={awayPalette}
+            isFinished={isFinished}
+            isLive={isLive}
           />
 
           {/* Info Card */}
