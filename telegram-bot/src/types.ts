@@ -109,13 +109,15 @@ export interface UserPortfolio {
   address: string;
   positions: Array<{
     matchId: string;
-    team: string;
+    team?: string;
+    market?: string;
     amount: string;
     currentValue: string;
     pnl: string;
   }>;
   pnl: string;
-  trophies: Array<{
+  totalVolume?: string;
+  trophies: number | Array<{
     tier: number;
     name: string;
     matchId: string;
