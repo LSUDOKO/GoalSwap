@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useAccount } from "wagmi";
 import { motion, AnimatePresence } from "framer-motion";
 import { oracleApi, type LeaderboardEntry } from "@/lib/oracle";
 import {
@@ -15,7 +16,10 @@ import {
   Crown,
   Star,
   Zap,
+  RefreshCw,
+  Search,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type LeaderboardType = "volume" | "pnl" | "trophies" | "streak";
 
@@ -54,19 +58,39 @@ const rankStyles = [
 ];
 
 export default function LeaderboardPage() {
+  const { address } = useAccount();
   const [activeTab, setActiveTab] = useState<LeaderboardType>("volume");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+
+  const loadLeaderboard = useCallback(async () => {
+    const data = await oracleApi.getLeaderboard(activeTab);
+    setEntries(data ?? []);
+    setLastRefresh(new Date());
+    setLoading(false);
+  }, [activeTab]);
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const data = await oracleApi.getLeaderboard(activeTab);
-      setEntries(data ?? []);
-      setLoading(false);
-    }
-    load();
-  }, [activeTab]);
+    setLoading(true);
+    loadLeaderboard();
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(loadLeaderboard, 30000);
+    return () => clearInterval(interval);
+  }, [loadLeaderboard]);
+
+  // Filter entries by search
+  const filteredEntries = searchQuery
+    ? entries.filter(
+        (e) =>
+          e.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (e.name && e.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : entries;
+
+  // Find current user's position
+  const myEntry = address ? entries.find((e) => e.address.toLowerCase() === address.toLowerCase()) : null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
@@ -92,33 +116,83 @@ export default function LeaderboardPage() {
         </p>
       </motion.div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-zinc-800">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`relative flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? "text-emerald-400"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {tab.label}
-              {isActive && (
-                <motion.div
-                  layoutId="lb-tab-indicator"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"
-                />
-              )}
-            </button>
-          );
-        })}
+      {/* Tabs + refresh */}
+      <div className="flex items-center justify-between mb-6 border-b border-zinc-800">
+        <div className="flex gap-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`relative flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "text-emerald-400"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+                {isActive && (
+                  <motion.div
+                    layoutId="lb-tab-indicator"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-zinc-600">
+            Updated {lastRefresh.toLocaleTimeString()}
+          </span>
+          <button
+            onClick={() => { setLoading(true); loadLeaderboard(); }}
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 transition-all"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
+
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600" />
+        <input
+          type="text"
+          placeholder="Search by address or name..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full rounded-lg border border-zinc-800 bg-zinc-900/40 pl-9 pr-4 py-2 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-emerald-500/30 transition-colors"
+        />
+      </div>
+
+      {/* Current user highlight */}
+      {myEntry && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-500/30 text-xs font-bold text-emerald-400">
+              {myEntry.name ? myEntry.name.slice(0, 2).toUpperCase() : myEntry.address.slice(2, 4).toUpperCase()}
+            </div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-emerald-400">Your Rank</div>
+              <div className="text-[10px] text-zinc-500">
+                #{myEntry.rank} · {myEntry.volume} volume · {myEntry.trophies} trophies
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold text-emerald-400 tabular-nums">#{myEntry.rank}</div>
+              <div className="text-[10px] text-zinc-500">{myEntry.xp} XP</div>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* List */}
       {loading ? (
@@ -155,7 +229,7 @@ export default function LeaderboardPage() {
       ) : (
         <div className="space-y-2">
           <AnimatePresence mode="popLayout">
-            {entries.map((entry, i) => {
+            {filteredEntries.map((entry, i) => {
               const r = entry.rank ?? i + 1;
               const isTop3 = i < 3;
               const style = isTop3 ? rankStyles[i] : null;
@@ -169,11 +243,14 @@ export default function LeaderboardPage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 12 }}
                   transition={{ delay: i * 0.025, duration: 0.25 }}
-                  className={`flex items-center gap-3 rounded-xl border p-4 transition-all ${
+                  className={cn(
+                    `flex items-center gap-3 rounded-xl border p-4 transition-all`,
                     style
                       ? `${style.bg} ${style.border}`
-                      : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900/60"
-                  }`}
+                      : "border-zinc-800 bg-zinc-90/40 hover:border-zinc-700 hover:bg-zinc-900/60",
+                    address && entry.address.toLowerCase() === address.toLowerCase() &&
+                      "ring-1 ring-emerald-500/30",
+                  )}
                 >
                   {/* Rank */}
                   <div className="flex w-8 items-center justify-center shrink-0">
