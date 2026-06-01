@@ -152,6 +152,11 @@ export const config = {
     apiBaseUrl: "https://twitter241.p.rapidapi.com",
   },
 
+  // ── Telegram Bot (push alert webhook) ──
+  telegramBot: {
+    webhookUrl: process.env.TELEGRAM_BOT_WEBHOOK_URL ?? "",
+  },
+
   // ── Redis ──
   redis: {
     url: process.env.REDIS_URL ?? "redis://localhost:6379",

@@ -24,6 +24,7 @@ import { WebhookServer } from "./webhook-server.js";
 import { XBot } from "./XBot.js";
 import { getFeeTier } from "./fees.js";
 import { keccak256, stringToHex } from "viem";
+import axios from "axios";
 import { ChangeType, ALL_SPORTS } from "./types.js";
 import type { MatchState, StateChange, MatchUpdate, MatchMetadata, Sport } from "./types.js";
 
@@ -125,6 +126,9 @@ async function pollCycle(): Promise<void> {
       }
 
       _broadcastWsEvent(change, meta?.homeTeam ?? "Unknown", meta?.awayTeam ?? "Unknown", meta?.sport);
+
+      // Forward to Telegram bot for push alerts to subscribers
+      _forwardToTelegramBot(change, meta?.homeTeam, meta?.awayTeam, meta?.sport).catch(() => {});
 
       // XBot: post match updates to X/Twitter
       xBot.onStateChange(change, meta).catch(() => {});
@@ -232,6 +236,96 @@ function _broadcastWsEvent(
         feeTier: getFeeTier(state),
         feeReason: "Normal play",
       });
+  }
+}
+
+/**
+ * Forward state changes to the Telegram bot's webhook endpoint.
+ * The bot receives these as push notifications and sends alerts to subscribers.
+ * Falls back gracefully (catch) — no crash if the bot is unreachable.
+ */
+async function _forwardToTelegramBot(
+  change: StateChange,
+  homeTeam?: string,
+  awayTeam?: string,
+  sport?: string,
+): Promise<void> {
+  const webhookUrl = config.telegramBot.webhookUrl;
+  if (!webhookUrl) return; // Not configured — skip silently
+
+  const state = change.newState;
+  const prev = change.previousState;
+  const home = homeTeam ?? "Unknown";
+  const away = awayTeam ?? "Unknown";
+  const scoreStr = `${state.homeScore}-${state.awayScore}`;
+  const matchLink = `https://goalswap.vercel.app/match/${change.matchId}`;
+
+  let type: string;
+  let title: string;
+  let message: string;
+
+  switch (change.changeType) {
+    case ChangeType.GOAL: {
+      const scoringTeam = state.homeScore > prev.homeScore ? home : away;
+      type = "goal";
+      title = `⚽ GOAL! ${home} ${scoreStr} ${away}`;
+      message = [
+        `⚽ *GOAL! ${home} ${scoreStr} ${away}*`,
+        ``,
+        `🏟️ ${home} vs ${away}`,
+        `⏱️ ${state.minute}'`,
+        `🎯 ${scoringTeam} scores!`,
+        ``,
+        `[▶️ Trade Now](${matchLink})`,
+      ].join("\n");
+      break;
+    }
+    case ChangeType.SETTLEMENT: {
+      const winner = state.homeScore > state.awayScore ? home : state.awayScore > state.homeScore ? away : "Draw";
+      type = "settlement";
+      title = `🏁 Match Ended: ${home} ${scoreStr} ${away}`;
+      message = [
+        `🏁 *MATCH ENDED*`,
+        ``,
+        `*${home} ${scoreStr} ${away}*`,
+        `🏆 Winner: ${winner}`,
+        ``,
+        `✅ Winning tokens now redeemable 1:1 USDC`,
+        `🔥 Losing tokens auto-burned`,
+        ``,
+        `[View Positions](https://goalswap.vercel.app/profile)`,
+      ].join("\n");
+      break;
+    }
+    case ChangeType.RED_CARD:
+    case ChangeType.PENALTY_SHOOTOUT:
+    case ChangeType.MINUTE_ADVANCE:
+    case ChangeType.STATUS_CHANGE: {
+      type = "fee";
+      title = `📊 Fee Update: ${home} ${scoreStr} ${away}`;
+      message = [
+        `📊 *Fee Change*`,
+        ``,
+        `🏟️ ${home} vs ${away}`,
+        `📝 ${change.description}`,
+        ``,
+        `[▶️ Trade Now](${matchLink})`,
+      ].join("\n");
+      break;
+    }
+    default:
+      return; // Skip unknown change types
+  }
+
+  try {
+    await axios.post(webhookUrl, { matchId: change.matchId, type, title, message }, {
+      timeout: 5000,
+      headers: { "Content-Type": "application/json" },
+    });
+    console.log(`[TelegramBot] Forwarded ${type} alert for ${change.matchId.slice(0, 10)}...`);
+  } catch (err) {
+    // Silently fail — the bot may not be running or webhook not configured
+    console.warn(`[TelegramBot] Forward ${type} failed:`, (err as Error).message);
   }
 }
 
