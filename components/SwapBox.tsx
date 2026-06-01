@@ -59,7 +59,7 @@ export function SwapBox({
     chainId: xLayerTestnet.id,
   });
 
-  const feePct = currentFee / 100;
+  const feePct = currentFee / 10000;
   const enteredAmount = parseFloat(amount) || 0;
   const isAmountValid = enteredAmount > 0;
 

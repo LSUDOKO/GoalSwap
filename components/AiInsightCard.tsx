@@ -162,7 +162,7 @@ export function AiInsightCard({
     const isHomeLeading = homeScore > awayScore;
     const minutesRemaining = Math.max(90 - minute, 0);
     const stoppageTime = minute > 90;
-    const feePct = currentFee / 100;
+    const feePct = currentFee / 10000;
 
     let signal: number;
 

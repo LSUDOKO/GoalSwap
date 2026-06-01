@@ -618,7 +618,7 @@ export default function MatchDetailPage({ params }: { params: Promise<{ matchId:
           <div className="relative border-t border-white/[0.05] px-5 sm:px-8 py-3 flex items-center justify-between bg-black/40 backdrop-blur-sm">
             <div className="flex items-center gap-2.5 text-xs text-zinc-500">
               <Gauge className="h-3.5 w-3.5 text-emerald-500/60" />
-              <span>Dynamic Fee: <span className="text-zinc-200 font-bold">{(currentFee / 100).toFixed(1)}%</span></span>
+              <span>Dynamic Fee: <span className="text-zinc-200 font-bold">{(currentFee / 10000).toFixed(1)}%</span></span>
               <span className="text-zinc-700">·</span>
               <span className="text-zinc-500">{feeReason}</span>
             </div>

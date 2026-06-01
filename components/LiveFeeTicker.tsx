@@ -148,7 +148,7 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
 
 export function LiveFeeTicker({ currentFee, feeReason, feeHistory = [] }: LiveFeeTickerProps) {
   const tier = useMemo(() => getFeeTier(currentFee), [currentFee]);
-  const feePct = (currentFee / 100).toFixed(1);
+  const feePct = (currentFee / 10000).toFixed(1);
 
   // Sparkline data — last 20 entries
   const sparklineData = useMemo(() => {

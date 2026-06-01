@@ -138,7 +138,7 @@ goalswap-arena/
 | **GoalSwapTrophies** | [`0x6788921d3d3956C10554f1aEc8d9d4B279c9A735`](https://www.oklink.com/xlayer-test/address/0x6788921d3d3956C10554f1aEc8d9d4B279c9A735) | Soulbound achievement NFTs (5 tiers, free mint) |
 | **BracketNFT** | [`0xE3fD44B189F481E0FBE887b0F0dE938d4107D9F3`](https://www.oklink.com/xlayer-test/address/0xE3fD44B189F481E0FBE887b0F0dE938d4107D9F3) | Transferable bracket prediction NFTs |
 | **MockUSDC** | `0x2ECDAcB97eE840da3391E63038D7E086129A13d5` | Test USDC for settlement |
-| **MockPoolManager** | `0x2155241692D720B41eF7c8e8Af753DE6E9Fc4b2c` | Demo swap execution (simulateSwap) |
+| **MockPoolManager** | `0x0Bf02B5765dBbC15b5C1b56412Fc73e70F782564` | Demo swap execution (simulateSwap) |
 | **Deployer (Oracle)** | `0x4FD969A5E6c9f3fff2cA37B473E30b39106F0F99` | Oracle signer wallet |
 
 All contracts verified on [X Layer Testnet Explorer](https://www.oklink.com/xlayer-test).
@@ -275,7 +275,7 @@ Set these env vars in Vercel Dashboard:
 | `NEXT_PUBLIC_API_URL` | `https://goalswap.onrender.com` |
 | `NEXT_PUBLIC_WS_URL` | `https://goalswap.onrender.com` |
 | `NEXT_PUBLIC_HOOK_ADDRESS` | `0x3E19f269DF50d0a8fc32ee774E7C338A8cDF11CF` |
-| `NEXT_PUBLIC_POOL_MANAGER_ADDRESS` | `0x2155241692D720B41eF7c8e8Af753DE6E9Fc4b2c` |
+| `NEXT_PUBLIC_POOL_MANAGER_ADDRESS` | `0x0Bf02B5765dBbC15b5C1b56412Fc73e70F782564` |
 | `NEXT_PUBLIC_USDC_ADDRESS` | `0x2ECDAcB97eE840da3391E63038D7E086129A13d5` |
 
 ---
