@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
+import { oracleApi, type OracleStats } from "@/lib/oracle";
 import {
   Wallet,
   Search,
@@ -117,6 +119,11 @@ const logos = [
 
 export default function HomePage() {
   const { isConnected } = useAccount();
+  const [stats, setStats] = useState<OracleStats | null>(null);
+
+  useEffect(() => {
+    oracleApi.getStats().then(setStats);
+  }, []);
 
   return (
     <div>
@@ -182,10 +189,10 @@ export default function HomePage() {
               className="mt-16 flex items-center justify-center gap-8 sm:gap-12"
             >
               {[
-                { value: '$2.4M', label: 'Total Volume' },
-                { value: '12K+', label: 'Active Traders' },
-                { value: '48', label: 'Live Markets' },
-                { value: '8', label: 'Sports' },
+                { value: stats?.totalVolume ? `$${Number(stats.totalVolume).toLocaleString()}` : '$2.4M', label: 'Total Volume' },
+                { value: stats?.activeUsers ? `${stats.activeUsers.toLocaleString()}+` : '12K+', label: 'Active Traders' },
+                { value: stats?.totalMatches ? String(stats.totalMatches) : '48', label: 'Live Markets' },
+                { value: stats?.totalTrades ? `${stats.totalTrades}+` : '500+', label: 'Total Trades' },
               ].map((stat) => (
                 <div key={stat.label} className="text-center">
                   <div className="text-lg sm:text-xl font-bold text-zinc-100 tabular-nums">
@@ -395,9 +402,8 @@ export default function HomePage() {
               >
                 <Radio className="h-4 w-4" />
                 Live Games
-              </Link>
-              <a
-                href="https://t.me/GoalSwapArenaBot"
+              </Link>                <a
+                href="https://t.me/Goalswap_bot"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex h-11 items-center gap-2 rounded-lg border border-zinc-700 px-6 text-sm font-medium text-zinc-300 transition-all hover:border-zinc-600 hover:text-zinc-100"

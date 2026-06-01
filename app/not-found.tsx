@@ -74,7 +74,7 @@ export default function NotFoundPage() {
           Browse Matches
         </Link>
         <a
-          href="https://t.me/GoalSwapArenaBot"
+          href="https://t.me/Goalswap_bot"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex h-11 items-center gap-2 rounded-lg border border-zinc-700 px-6 text-sm font-medium text-zinc-300 transition-all hover:border-zinc-600 hover:text-zinc-100"

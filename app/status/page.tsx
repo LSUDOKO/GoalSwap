@@ -236,7 +236,7 @@ export default function StatusPage() {
             { href: "/activity", label: "Activity", icon: "A", desc: "Live activity feed" },
             { href: "/tokens", label: "Tokens", icon: "T", desc: "Fan tokens & markets" },
             { href: "/leaderboard", label: "Leaderboard", icon: "L", desc: "Top traders" },
-            { href: "https://t.me/GoalSwapArenaBot", label: "Telegram Bot", icon: "B", desc: "@GoalSwapArenaBot", external: true },
+            { href: "https://t.me/Goalswap_bot", label: "Telegram Bot", icon: "B", desc: "@Goalswap_bot", external: true },
           ].map((link, i) => (
             <motion.div
               key={link.href}

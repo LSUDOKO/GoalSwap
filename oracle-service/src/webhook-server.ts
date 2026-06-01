@@ -460,8 +460,8 @@ export class WebhookServer {
             name: 'Telegram Bot',
             type: 'bot' as const,
             status: 'operational' as const,
-            description: '@GoalSwapArenaBot — live alerts, portfolio, trading',
-            link: 'https://t.me/GoalSwapArenaBot',
+            description: '@Goalswap_bot — live alerts, portfolio, trading',
+            link: 'https://t.me/Goalswap_bot',
           },
           {
             id: 'x-bot',

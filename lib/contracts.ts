@@ -39,7 +39,7 @@ export const contracts = {
   fanTokenLauncher: process.env.NEXT_PUBLIC_FAN_TOKEN_LAUNCHER as `0x${string}` | undefined,
   trophies: (process.env.NEXT_PUBLIC_TROPHIES_ADDRESS || "0x6788921d3d3956C10554f1aEc8d9d4B279c9A735") as `0x${string}`,
   bracketNft: (process.env.NEXT_PUBLIC_BRACKET_NFT_ADDRESS || "0xE3fD44B189F481E0FBE887b0F0dE938d4107D9F3") as `0x${string}`,
-  poolManager: (process.env.NEXT_PUBLIC_POOL_MANAGER_ADDRESS || "0x2155241692D720B41eF7c8e8Af753DE6E9Fc4b2c") as `0x${string}`,
+  poolManager: (process.env.NEXT_PUBLIC_POOL_MANAGER_ADDRESS || "0x0Bf02B5765dBbC15b5C1b56412Fc73e70F782564") as `0x${string}`,
 };
 
 export const hookAbi = [

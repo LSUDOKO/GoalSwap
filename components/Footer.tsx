@@ -10,7 +10,7 @@ const footerLinks = {
     { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   ],
   resources: [
-    { href: "https://t.me/GoalSwapArenaBot", label: "Telegram Bot", icon: Send, external: true },
+    { href: "https://t.me/Goalswap_bot", label: "Telegram Bot", icon: Send, external: true },
     { href: "https://x.com", label: "X (Twitter)", icon: AtSign, external: true },
     { href: "https://docs.goalswap.xyz", label: "Documentation", icon: BookOpen, external: true },
   ],
@@ -42,7 +42,7 @@ export function Footer() {
             </p>
             <div className="mt-6 flex gap-3">
               <a
-                href="https://t.me/GoalSwapArenaBot"
+                href="https://t.me/Goalswap_bot"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-800 bg-zinc-900 text-zinc-500 transition-colors hover:border-zinc-700 hover:text-zinc-300"

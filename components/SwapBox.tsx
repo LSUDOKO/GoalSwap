@@ -79,8 +79,9 @@ export function SwapBox({
       matchId,
       amount,
       outcome: selectedOutcome,
+      currentFee: currentFee,
     });
-  }, [amount, selectedOutcome, matchId, executeSwap, isAmountValid]);
+  }, [amount, selectedOutcome, matchId, executeSwap, isAmountValid, currentFee]);
 
   // ── Outcome buttons ──
   const outcomeButtons: Array<{
