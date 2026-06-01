@@ -20,7 +20,7 @@
 
 | Visual | Audio |
 |--------|-------|
-| Screen recording: goalswap.xyz/matches page. Live match card: Argentina vs Brazil. Score is 1-0. | *"Real sports data from API-Football feeds the Uniswap V4 hook every 30 seconds."* |
+| Screen recording: https://goalswap.vercel.app/matches page. Live match card: Argentina vs Brazil. Score is 1-0. | *"Real sports data from API-Football feeds the Uniswap V4 hook every 30 seconds."* |
 | Cut to match detail page. Goal alert appears: ⚽ ARG 2-0. | *"Argentina scores. In real-time..."* |
 | Fee indicator animates: 1% (gray) → 3% (orange). Fee counter shows "Post-Goal Volatility". | *"...the dynamic fee jumps from 1% to 3%, protecting liquidity providers."* |
 | Text overlay: **"5-second update latency"** | *"All in under five seconds."* |
@@ -89,7 +89,9 @@
 ### Screen Recording Setup
 - Resolution: 1920×1080 at 60fps
 - Browser: Chrome with clean bookmarks bar
-- Pre-load matching data in Redis cache for seamless demo
+- Oracle already running on https://goalswap.onrender.com with 56 seeded matches
+- Telegram bot live at https://goalswap-1.onrender.com (or @Goalswap_bot on Telegram)
+- Frontend at https://goalswap.vercel.app — all services ready to go
 - Use screen recording tool (OBS / CleanShot X / ScreenFlow)
 
 ### Audio

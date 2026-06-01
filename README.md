@@ -10,6 +10,18 @@ Built on **X Layer** + **Uniswap V4 dynamic fee hooks** with real-time oracle da
 
 ---
 
+## 🚀 Live Deployments
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | [https://goalswap.vercel.app](https://goalswap.vercel.app) |
+| **Oracle API** | [https://goalswap.onrender.com](https://goalswap.onrender.com) |
+| **WebSocket** | `wss://goalswap.onrender.com` (shared port) |
+| **Telegram Bot** | [@Goalswap_bot](https://t.me/Goalswap_bot) |
+| **GitHub** | [github.com/LSUDOKO/GoalSwap](https://github.com/LSUDOKO/GoalSwap) |
+
+---
+
 ## Overview
 
 GoalSwap Arena lets users trade match outcome prediction tokens, team fan tokens, and bracket predictions — all settled in **USDC** on X Layer. Unlike traditional prediction markets, every trade flows through **Uniswap V4 liquidity pools** with fees that adjust dynamically based on live match events.
@@ -17,11 +29,11 @@ GoalSwap Arena lets users trade match outcome prediction tokens, team fan tokens
 ### How It Works
 
 ```
-Real sports API → Oracle Service → WebSocket broadcast → Frontend
-                    ↓
-       Uniswap V4 Hook (dynamic fee adjustment)
-                    ↓
-              On-chain settlement
+Real sports API → Oracle Service (Render) → WebSocket broadcast → Frontend (Vercel)
+                    ↓                                  ↓
+       Telegram Bot push alerts ← → Uniswap V4 Hook (dynamic fee adjustment)
+                                        ↓
+                                  On-chain settlement
 ```
 
 1. **Connect** your wallet via RainbowKit
@@ -123,7 +135,7 @@ goalswap-arena/
 | **GoalSwapTrophies** | [`0x6788921d3d3956C10554f1aEc8d9d4B279c9A735`](https://www.oklink.com/xlayer-test/address/0x6788921d3d3956C10554f1aEc8d9d4B279c9A735) | Soulbound achievement NFTs (5 tiers, free mint) |
 | **BracketNFT** | [`0xE3fD44B189F481E0FBE887b0F0dE938d4107D9F3`](https://www.oklink.com/xlayer-test/address/0xE3fD44B189F481E0FBE887b0F0dE938d4107D9F3) | Transferable bracket prediction NFTs |
 | **MockUSDC** | `0x2ECDAcB97eE840da3391E63038D7E086129A13d5` | Test USDC for settlement |
-| **PoolManager** | `0x0Bf02B5765dBbC15b5C1b56412Fc73e70F782564` | Uniswap V4 PoolManager |
+| **MockPoolManager** | `0x2155241692D720B41eF7c8e8Af753DE6E9Fc4b2c` | Demo swap execution (simulateSwap) |
 | **Deployer (Oracle)** | `0x4FD969A5E6c9f3fff2cA37B473E30b39106F0F99` | Oracle signer wallet |
 
 All contracts verified on [X Layer Testnet Explorer](https://www.oklink.com/xlayer-test).
@@ -169,7 +181,7 @@ All contracts verified on [X Layer Testnet Explorer](https://www.oklink.com/xlay
 | **Telegram** | `node-telegram-bot-api` |
 | **X Bot** | Python — Tweepy + OpenAI |
 | **Indexer** | The Graph (subgraph) |
-| **Infrastructure** | Vercel (frontend), EC2 (oracle), Upstash (Redis) |
+| **Infrastructure** | Vercel (frontend), Render (oracle + Telegram bot), Upstash (Redis) |
 
 ---
 
@@ -205,13 +217,13 @@ Mint transferable NFT brackets with your World Cup predictions. Trade bracket fu
 ### Real-Time Data
 Oracle nodes pull match data from API-Football, TheSportsDB, and Sportmonks at sub-minute intervals. WebSockets push score changes instantly.
 
-### 🤖 Telegram Bot — @GoalSwapArenaBot
+### 🤖 Telegram Bot — @Goalswap_bot
 - `/live` — Live matches with scores and fee tiers
 - `/match {team}` — Search match by team
 - `/alert {matchId} {condition}` — Custom goal/price/fee alerts
 - `/portfolio {wallet}` — Portfolio summary
 - `/leaderboard` — Top 10 global traders
-- Auto-push goal notifications with inline trading buttons
+- Auto-push goal notifications with inline trading buttons (pushed from oracle via webhook)
 - Multi-language support (EN, ES, PT, FR, AR, DE, JA, KO, ZH, RU, IT, NL)
 
 ### 🐦 X Bot — @GoalSwapAgent
@@ -226,7 +238,46 @@ Oracle nodes pull match data from API-Football, TheSportsDB, and Sportmonks at s
 
 ---
 
-## Getting Started
+## Deployment
+
+The platform runs on **Vercel** (frontend) + **Render** (oracle + Telegram bot).
+
+### Deploying Oracle to Render
+
+1. Push to GitHub — `render.yaml` in project root auto-configures the oracle service
+2. Go to [dashboard.render.com](https://dashboard.render.com) → **New Web Service** → select your repo
+3. Verify settings: Root Directory = `oracle-service`, Build = `npm install && npm run build`, Start = `npm run start`
+4. Add all env vars from `oracle-service/.env` (API keys, contract addresses, wallet key)
+5. Deploy — the oracle starts with 56 seeded matches across 13 sports
+
+### Deploying Telegram Bot to Render
+
+1. Create a new Web Service from the same repo
+2. Verify settings: Root Directory = `telegram-bot`, Build = `npm install && npm run build`, Start = `npm run start`
+3. Add env vars: `TELEGRAM_BOT_TOKEN`, `ORACLE_API_URL`, `FRONTEND_URL`
+4. Add `TELEGRAM_BOT_WEBHOOK_URL` to the oracle's env (pointing to `https://your-bot.onrender.com/webhook/alert`)
+
+### Deploying Frontend to Vercel
+
+```bash
+vercel login
+vercel --prod
+```
+
+Set these env vars in Vercel Dashboard:
+
+| Variable | Value |
+|----------|-------|
+| `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` | `aa5133abbd30c8e1836400f800b3f6e0` |
+| `NEXT_PUBLIC_API_URL` | `https://goalswap.onrender.com` |
+| `NEXT_PUBLIC_WS_URL` | `https://goalswap.onrender.com` |
+| `NEXT_PUBLIC_HOOK_ADDRESS` | `0x3E19f269DF50d0a8fc32ee774E7C338A8cDF11CF` |
+| `NEXT_PUBLIC_POOL_MANAGER_ADDRESS` | `0x2155241692D720B41eF7c8e8Af753DE6E9Fc4b2c` |
+| `NEXT_PUBLIC_USDC_ADDRESS` | `0x2ECDAcB97eE840da3391E63038D7E086129A13d5` |
+
+---
+
+## Getting Started (Local Dev)
 
 ### Prerequisites
 
@@ -260,10 +311,10 @@ cd ai-agent && pip install -r requirements.txt && cd ..
 | Variable | Description |
 |----------|-------------|
 | `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` | WalletConnect Cloud project ID |
-| `NEXT_PUBLIC_API_URL` | Oracle REST API URL (default: `http://localhost:3002`) |
-| `NEXT_PUBLIC_WS_URL` | WebSocket URL (default: `http://localhost:8081`) |
-| `NEXT_PUBLIC_HOOK_ADDRESS` | Deployed Hook contract address |
-| `NEXT_PUBLIC_OUTCOME_FACTORY_ADDRESS` | OutcomeTokenFactory address |
+| `NEXT_PUBLIC_API_URL` | Oracle REST API URL |
+| `NEXT_PUBLIC_WS_URL` | WebSocket URL |
+| `NEXT_PUBLIC_HOOK_ADDRESS` | WorldCupArenaHook contract |
+| `NEXT_PUBLIC_POOL_MANAGER_ADDRESS` | MockPoolManager (simulateSwap) |
 | `NEXT_PUBLIC_USDC_ADDRESS` | USDC token address |
 | `NEXT_PUBLIC_TROPHIES_ADDRESS` | GoalSwapTrophies address |
 
@@ -271,22 +322,21 @@ cd ai-agent && pip install -r requirements.txt && cd ..
 
 | Variable | Description |
 |----------|-------------|
-| `API_FOOTBALL_KEY` | API-Football key ([api-sports.io](https://api-sports.io)) |
-| `SPORTSDB_KEY` | TheSportsDB key |
+| `API_SPORTS_KEY` | API-Football & api-sports.io key |
+| `SPORTMONKS_TOKEN` | Sportmonks API token |
 | `ORACLE_PRIVATE_KEY` | Wallet private key for on-chain writes |
 | `X_LAYER_RPC` | X Layer RPC URL |
-| `REDIS_URL` | Redis connection string |
-| `WS_PORT` | WebSocket port (default: 8080) |
-| `WEBHOOK_PORT` | REST API port (default: 3002) |
+| `REDIS_URL` | Redis connection string (omit = in-memory fallback) |
+| `TELEGRAM_BOT_WEBHOOK_URL` | Telegram bot webhook for push alerts |
 
 ### 3. Run Locally
 
 ```bash
-# Terminal 1 — Start Redis
-redis-server
-
-# Terminal 2 — Start the oracle service
+# Terminal 1 — Start oracle service
 cd oracle-service && npm run dev
+
+# Terminal 2 — Start Telegram bot
+cd telegram-bot && npm run dev
 
 # Terminal 3 — Start the frontend
 cd goalswap && npm run dev
@@ -294,14 +344,14 @@ cd goalswap && npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### Services Running
+### Local Services
 
 | Service | Port | Description |
 |---------|------|-------------|
 | Frontend | `:3000` | Next.js app |
 | REST API | `:3002` | Match data, tokens, leaderboard |
-| WebSocket | `:8081` | Live match updates |
-| Redis | `:6379` | Match state cache |
+| WebSocket | `:8080` | Live match updates |
+| Telegram Bot | `:3003` | Push alert webhook bridge |
 
 ---
 
@@ -368,11 +418,10 @@ New `components/AiInsightCard.tsx` component on every match detail page:
 - Production notes for screen recording, audio, and post-production
 - Required tags: `@XLayerOfficial @Uniswap @flapdotsh`
 
-### ✅ Telegram Bot — @GoalSwapArenaBot
+### ✅ Telegram Bot — @Goalswap_bot
 - 10+ commands: `/live`, `/match`, `/alert`, `/portfolio`, `/leaderboard`, `/brackets`, `/trophies`, `/referral`, `/settings`, `/alerts`
-- Goal/fee/settlement auto-push notifications
-- Interactive conversation flows
-- Group chat support with anti-spam
+- Goal/fee/settlement auto-push notifications via oracle webhook
+- Deployed on Render (free tier, polling prevents spin-down)
 - Multi-language support (11 languages)
 
 ---
@@ -421,13 +470,11 @@ npm run deploy
 ## Submission Checklist
 
 - [x] **WorldCupArenaHook.sol** deployed on X Layer with real oracle integration
-- [x] **Oracle node** running with API-Football + TheSportsDB fallback
-- [x] **WebSocket server** broadcasting real match updates
-- [x] **Next.js frontend** live with real match data
-- [x] **@GoalSwapArenaBot** fully implemented (all commands + push alerts)
-- [x] **@GoalSwapAgent** X bot scripted (auto-post + reply handler)
-- [x] **AI Insight Card** integrated into match detail page
-- [x] **The Graph subgraph** schema + mappings ready
+- [x] **Oracle node** running on Render — 13 sports, 56 seeded matches, API keys configured
+- [x] **WebSocket + HTTP** shared on single port (Render compatible)
+- [x] **Next.js frontend** live on Vercel — connected to Render backend
+- [x] **@Goalswap_bot** deployed on Render — 10+ commands + push alerts from oracle
+- [x] **Oracle → Telegram bot webhook** — real-time goal/settlement push integration
 - [x] **Demo video script** prepared (90 seconds, 7 scenes)
 - [x] **Smart contracts verified** on X Layer Testnet Explorer
 - [x] **GitHub repo** public with comprehensive README
