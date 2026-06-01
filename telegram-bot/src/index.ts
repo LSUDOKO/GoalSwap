@@ -39,7 +39,12 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
 // PORT (Render) takes priority over WEBHOOK_PORT for deployed environments
 const WEBHOOK_PORT = parseInt(process.env.PORT ?? process.env.WEBHOOK_PORT ?? "3003", 10);
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "https://goalswap.vercel.app";
-const USE_POLLING = process.env.USE_POLLING !== "false";
+// Auto-detect: Render has RENDER_EXTERNAL_URL set → webhook mode
+// Local dev: no public URL → polling mode
+const IS_RENDER = !!process.env.RENDER_EXTERNAL_URL;
+const USE_POLLING = process.env.USE_POLLING !== undefined
+  ? process.env.USE_POLLING !== "false"
+  : !IS_RENDER; // Default: webhook on Render, polling locally
 
 // Ensure data directory exists
 import fs from "fs";
@@ -174,9 +179,43 @@ app.post("/webhook/alert", async (req, res) => {
   res.json({ received: true, sent, totalSubscribers: subs.length });
 });
 
-app.listen(WEBHOOK_PORT, () => {
+app.listen(WEBHOOK_PORT, async () => {
   console.log(`[Webhook] Bridge listening on port ${WEBHOOK_PORT}`);
+
+  // In webhook mode, set the Telegram webhook URL so it sends updates here
+  if (!USE_POLLING) {
+    const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL || process.env.RENDER_EXTERNAL_URL;
+    if (webhookUrl) {
+      try {
+        await bot.setWebHook(`${webhookUrl}/webhook/telegram`);
+        console.log(`[Bot] Webhook set to ${webhookUrl}/webhook/telegram`);
+      } catch (err) {
+        console.error("[Bot] Failed to set webhook:", (err as Error).message);
+      }
+    } else {
+      console.warn("[Bot] No TELEGRAM_WEBHOOK_URL or RENDER_EXTERNAL_URL — webhook won't receive updates");
+    }
+  }
 });
+
+// In webhook mode, route incoming Telegram updates through Express
+// In polling mode, clear any stale webhook from a previous run
+if (!USE_POLLING) {
+  app.post("/webhook/telegram", (req, res) => {
+    try {
+      bot.processUpdate(req.body);
+      res.sendStatus(200);
+    } catch (err) {
+      console.error("[Webhook] Failed to process Telegram update:", (err as Error).message);
+      res.sendStatus(500);
+    }
+  });
+} else {
+  // Ensure no stale webhook is active when running in polling mode
+  bot.deleteWebHook().then(() => {
+    console.log("[Bot] Cleared any stale webhook (polling mode)");
+  }).catch(() => { /* no webhook to clear */ });
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  Start Notification Poller
