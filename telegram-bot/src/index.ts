@@ -37,7 +37,7 @@ console.log(`
 // ── Configuration ──
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
 const WEBHOOK_PORT = parseInt(process.env.WEBHOOK_PORT ?? "3003", 10);
-const FRONTEND_URL = process.env.FRONTEND_URL ?? "https://goalswap.xyz";
+const FRONTEND_URL = process.env.FRONTEND_URL ?? "https://goalswap.vercel.app";
 const USE_POLLING = process.env.USE_POLLING !== "false";
 
 // Ensure data directory exists

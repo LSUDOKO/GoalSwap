@@ -1,0 +1,30 @@
+# GoalSwap Telegram Bot — Render Blueprint
+#
+# Deploy the Telegram bot on Render's free tier.
+# Uses polling mode to fetch match updates from the oracle REST API
+# and push alerts to subscribed users.
+#
+# Get started:
+#   1. Push this repo to GitHub
+#   2. Go to https://dashboard.render.com
+#   3. Click "New Web Service" → "Build and deploy from a Git repository"
+#   4. Select this repo
+#   5. Set the env vars listed below in the Render Dashboard
+#   6. Deploy — the bot will start polling immediately
+
+services:
+  - type: web
+    name: goalswap-telegram-bot
+    runtime: node
+    plan: free
+    rootDir: telegram-bot
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # ⚠️  REQUIRED env vars — set these via the Render Dashboard:
+      #   TELEGRAM_BOT_TOKEN — from @BotFather on Telegram (bot WILL NOT START without this)
+      #   TELEGRAM_ADMIN_ID — your Telegram user ID
+      #   ORACLE_API_URL — https://goalswap.onrender.com
+      #   FRONTEND_URL — https://goalswap.vercel.app

@@ -18,7 +18,7 @@ import type {
 class OracleApiClient {
   private baseUrl: string;
 
-  constructor(baseUrl: string = "http://localhost:3002") {
+  constructor(baseUrl: string = "https://goalswap.onrender.com") {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
   }
 
@@ -175,4 +175,4 @@ class OracleApiClient {
   }
 }
 
-export const api = new OracleApiClient(process.env.ORACLE_API_URL ?? "http://localhost:3002");
+export const api = new OracleApiClient(process.env.ORACLE_API_URL ?? "https://goalswap.onrender.com");
