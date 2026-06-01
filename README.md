@@ -1,3 +1,6 @@
+<img width="1500" height="500" alt="Goal Swap" src="https://github.com/user-attachments/assets/44d28fa2-b5c7-4802-9787-8982b8a8becb" />
+<!-- <img width="2000" height="2000" alt="House" src="https://github.com/user-attachments/assets/148d1047-89ef-4fc2-a6ff-5357add11e00" /> -->
+
 # GoalSwap Arena — Trade the World Cup
 
 **Live prediction markets for World Cup 2026 and beyond.**  
