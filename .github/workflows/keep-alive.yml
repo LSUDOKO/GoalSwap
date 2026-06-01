@@ -1,0 +1,40 @@
+# GoalSwap Keep-Alive
+# Pings both Render services every 5 minutes to prevent free tier spin-down.
+# Both services use Render's free tier which sleeps after ~15 min of inactivity.
+# This workflow ensures they stay awake 24/7.
+
+name: Keep Services Alive
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping-services:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Oracle Service
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: 'https://goalswap.onrender.com/health'
+          method: 'GET'
+          timeout: 30000
+          retryOnFailure: true
+          retryCount: 3
+
+      - name: Ping Telegram Bot Service
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: 'https://goalswap-1.onrender.com/health'
+          method: 'GET'
+          timeout: 60000
+          retryOnFailure: true
+          retryCount: 3
+
+      - name: Log Results
+        if: always()
+        run: |
+          echo "Keep-alive ping completed at $(date -u)"
+          echo "Both services should remain awake for the next 15 minutes."
